@@ -82,6 +82,7 @@ function applyMe(acct, me) {
 	const profile = profileFromMe(me);
 	if (!profile) return;
 	acct.account = profile;
+	acct.checkedAt = new Date().toISOString();
 	db.meta.freePacksMax = me.freePacksMax ?? db.meta.freePacksMax;
 	acct.tokenInvalid = false;
 	save();
@@ -369,6 +370,16 @@ export class Runner {
 		await this.tick(reason);
 	}
 
+	/** Relecture seule : rafraîchit /api/me sans ouvrir de booster. */
+	async sync() {
+		const acct = this.acct;
+		if (!acct?.token) throw new Error('Aucune clé enregistrée pour ce compte');
+		if (this.busy) return;
+		const me = await this.client.me();
+		applyMe(acct, me);
+		this.schedule();
+	}
+
 	stop() {
 		clearTimeout(this.timer);
 		this.timer = null;
@@ -416,7 +427,10 @@ export function startEngine() {
 	for (const acct of db.accounts) {
 		if (!acct.token) continue;
 		log(acct, 'info', acct.bot.running ? 'Bot démarré.' : 'Compte chargé (en pause).');
-		runnerFor(acct.id).schedule();
+		const runner = runnerFor(acct.id);
+		runner.schedule();
+		// Un GET /me au démarrage : les compteurs affichés repartent à jour.
+		if (acct.bot.running) runner.sync().catch(() => {});
 	}
 }
 

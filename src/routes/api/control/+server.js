@@ -16,6 +16,12 @@ export async function POST({ request }) {
 		runner.pause();
 	} else if (action === 'resume') {
 		runner.resume();
+	} else if (action === 'sync') {
+		try {
+			await runner.sync();
+		} catch (e) {
+			throw error(502, e?.message ?? 'Synchronisation impossible');
+		}
 	} else if (action === 'run') {
 		try {
 			await runner.runNow('manuel');

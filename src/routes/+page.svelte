@@ -71,7 +71,18 @@
 
 	const freePacks = $derived(snap.account?.freePacks ?? 0);
 	const cap = $derived(snap.account?.freePacksMax ?? snap.meta?.freePacksMax ?? 10);
-	const pct = $derived(cap > 0 ? Math.min(100, (freePacks / cap) * 100) : 0);
+	const checkedAgoMs = $derived(snap.checkedAt ? Math.max(0, now - Date.parse(snap.checkedAt)) : null);
+	// La réserve se régénère seule entre deux relevés : on projette depuis nextFreeAt
+	// (l'ancre exacte donnée par Kyara), pas depuis l'heure du relevé.
+	const estFree = $derived(
+		(() => {
+			const regen = snap.meta?.regenMs;
+			const nextAt = snap.account?.nextFreeAt ? Date.parse(snap.account.nextFreeAt) : null;
+			if (!regen || !Number.isFinite(nextAt) || now < nextAt) return freePacks;
+			return Math.min(cap, freePacks + 1 + Math.floor((now - nextAt) / regen));
+		})()
+	);
+	const pctEst = $derived(cap > 0 ? Math.min(100, (estFree / cap) * 100) : 0);
 	const nextFreeMs = $derived(
 		snap.account?.nextFreeAt ? Date.parse(snap.account.nextFreeAt) - now : null
 	);
@@ -343,12 +354,28 @@
 			<section class="panel gauge-card">
 				<div class="panel-head">
 					<h2>Réserve</h2>
-					<span class="tag">gratuit</span>
+					<div class="head-actions">
+						<span class="tag">gratuit</span>
+						<button class="link" onclick={() => act('sync')} disabled={pending !== null}>
+							{pending === 'sync' ? 'Relevé…' : 'Synchroniser'}
+						</button>
+					</div>
 				</div>
 
 				<div class="gauge">
-					<div class="gauge-value">{freePacks}<small>/{cap}</small></div>
-					<div class="bar"><div class="fill" style="width: {pct}%"></div></div>
+					<div class="gauge-value" class:approx={estFree !== freePacks}>
+						{estFree}<small>/{cap}</small>
+					</div>
+					<div class="bar"><div class="fill" style="width: {pctEst}%"></div></div>
+					<p class="stale">
+						{#if checkedAgoMs == null}
+							Jamais relevé
+						{:else}
+							Relevé il y a {fmtDur(checkedAgoMs)}{#if estFree !== freePacks}<span class="est">
+								· ≈ estimé</span
+							>{/if}
+						{/if}
+					</p>
 				</div>
 
 				<div class="rows">
@@ -809,6 +836,22 @@
 		font-size: 20px;
 		color: var(--muted);
 		font-weight: 500;
+	}
+	.gauge-value.approx {
+		color: #f0d67a;
+	}
+	.head-actions {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.stale {
+		margin: 0 0 16px;
+		font-size: 11.5px;
+		color: var(--muted);
+	}
+	.est {
+		color: #f0d67a;
 	}
 	.bar {
 		margin: 14px 0 18px;

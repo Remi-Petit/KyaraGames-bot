@@ -67,6 +67,8 @@ export function normalizeAccount(raw, fallbackId = 'compte') {
 		token: raw?.token ?? null,
 		tokenSetAt: raw?.tokenSetAt ?? null,
 		tokenInvalid: raw?.tokenInvalid ?? false,
+		/** dernier GET /api/me réussi : les compteurs affichés datent de là */
+		checkedAt: raw?.checkedAt ?? null,
 		account: raw?.account ?? null,
 		createdAt: raw?.createdAt ?? new Date().toISOString(),
 		bot: { ...defaultBot(), ...(raw?.bot || {}) },
@@ -222,6 +224,7 @@ export function accountSummary(account) {
 		tokenInvalid: account.tokenInvalid,
 		running: account.bot.running,
 		busy: account.bot.busy,
+		checkedAt: account.checkedAt ?? account.bot.lastRunAt ?? null,
 		freePacks: account.account?.freePacks ?? 0,
 		freePacksMax: account.account?.freePacksMax ?? db.meta.freePacksMax,
 		nextFreeAt: account.account?.nextFreeAt ?? null,
