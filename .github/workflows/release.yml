@@ -72,11 +72,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Construire et publier l'image
+      # Étapes séparées : si ça casse, l'onglet Actions nomme la coupable
+      # (login = droits, build = Dockerfile, push = permissions du package).
+      - name: Connexion à GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Construire l'image
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "image=$image" >> "$GITHUB_ENV"
           docker build -t "$image:$GITHUB_REF_NAME" -t "$image:latest" .
+
+      - name: Publier l'image
+        run: |
           docker push "$image:$GITHUB_REF_NAME"
           docker push "$image:latest"
           {
