@@ -12,12 +12,6 @@
 	let dirty = $state(false);
 	let adding = $state(false);
 	let me = $state(data.me);
-	let authMode = data.authMode;
-	let users = $state([]);
-	let usersError = $state(null);
-	let newUsername = $state('');
-	let newRole = $state('member');
-	let generated = $state(null);
 	let streamState = $state('connecting');
 	let settings = $state({ ...(data.snapshot.selected?.settings ?? {}) });
 	let tokenInput = $state('');
@@ -239,74 +233,6 @@
 	function isTypeOn(id) {
 		return !settings.types || settings.types.includes(id);
 	}
-	async function logout() {
-		await fetch('/api/logout', { method: 'POST' });
-		location.href = '/login';
-	}
-
-	async function loadUsers() {
-		try {
-			const res = await fetch('/api/users', { cache: 'no-store' });
-			const body = await res.json();
-			if (!res.ok) throw new Error(body.message ?? 'Erreur');
-			users = body.users;
-			usersError = null;
-		} catch (e) {
-			usersError = e.message;
-		}
-	}
-
-	$effect(() => {
-		if (me?.role === 'admin' || authMode === 'open') loadUsers();
-	});
-
-	async function createUser(event) {
-		event.preventDefault();
-		usersError = null;
-		try {
-			const res = await fetch('/api/users', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ username: newUsername, role: newRole })
-			});
-			const body = await res.json();
-			if (!res.ok) throw new Error(body.message ?? 'Erreur');
-			generated = { username: body.user.username, password: body.password };
-			newUsername = '';
-			await loadUsers();
-			if (body.loggedIn) location.reload();
-		} catch (e) {
-			usersError = e.message;
-		}
-	}
-
-	async function resetPassword(user) {
-		usersError = null;
-		try {
-			const res = await fetch(`/api/users/${user.id}`, {
-				method: 'PATCH',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ resetPassword: true })
-			});
-			const body = await res.json();
-			if (!res.ok) throw new Error(body.message ?? 'Erreur');
-			generated = { username: user.username, password: body.password };
-		} catch (e) {
-			usersError = e.message;
-		}
-	}
-
-	async function removeUser(user) {
-		if (!confirm(`Supprimer l'utilisateur ${user.username} ?`)) return;
-		usersError = null;
-		try {
-			const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
-			if (!res.ok) throw new Error((await res.json()).message ?? 'Erreur');
-			await loadUsers();
-		} catch (e) {
-			usersError = e.message;
-		}
-	}
 
 	function toggleType(id) {
 		const all = freeTypes.map((t) => t.id);
@@ -320,39 +246,25 @@
 <svelte:head><title>Kyara — Bot</title></svelte:head>
 
 <div class="wrap">
-	<header>
-		<div class="brand">
-			<span class="brand-kyara">KYARA</span>
-			<span class="brand-bot">BOT</span>
-			<div class="brand-sub">collecteur de boosters gratuits</div>
-		</div>
-
-		<div class="head-right">
-			{#if snap.account}
-				<div class="account">
-					{#if snap.account.discord?.avatar}
-						<img src={snap.account.discord.avatar} alt="" width="34" height="34" />
-					{:else}
-						<div class="avatar-fallback">{(snap.account.pseudo ?? '?')[0]}</div>
-					{/if}
-					<div class="account-text">
-						<strong>{snap.account.pseudo}</strong>
-						<span>◆ {snap.account.chakra ?? 0} chakra</span>
-					</div>
+	<header class="account-bar">
+		{#if snap.account}
+			<div class="account">
+				{#if snap.account.discord?.avatar}
+					<img src={snap.account.discord.avatar} alt="" width="34" height="34" />
+				{:else}
+					<div class="avatar-fallback">{(snap.account.pseudo ?? '?')[0]}</div>
+				{/if}
+				<div class="account-text">
+					<strong>{snap.account.pseudo}</strong>
+					<span>◆ {snap.account.chakra ?? 0} chakra</span>
 				</div>
-			{/if}
-			<div class="status {status.tone}">
-				<i></i>{status.label}
 			</div>
-			{#if me}
-				<div class="account">
-					<div class="account-text">
-						<strong>{me.username}</strong>
-						<span>{me.role === 'admin' ? 'administrateur' : 'membre'}</span>
-					</div>
-				</div>
-				<button class="link" onclick={logout}>Déconnexion</button>
-			{/if}
+		{:else}
+			<span class="note small">Aucun compte Kyara sélectionné</span>
+		{/if}
+
+		<div class="status {status.tone}">
+			<i></i>{status.label}
 		</div>
 	</header>
 
@@ -752,70 +664,6 @@
 		</div>
 	{/if}
 
-	{#if me?.role === 'admin' || authMode === 'open'}
-		<section class="panel users-panel">
-			<div class="panel-head">
-				<h2>Utilisateurs</h2>
-				<span class="tag">{users.length}</span>
-			</div>
-
-			<p class="note">
-				Chaque personne gère <strong>ses propres comptes Kyara</strong> : elle ne voit ni les tiens
-				ni tes clés, et ses actions ne touchent que ses comptes. Le bot tourne pour tout le monde.
-			</p>
-
-			{#if generated}
-				<div class="flash ok">
-					Mot de passe pour <strong>{generated.username}</strong> :
-					<code>{generated.password}</code> — affiché une seule fois.
-				</div>
-			{/if}
-			{#if usersError}<p class="err">{usersError}</p>{/if}
-
-			<div class="users-list">
-				{#each users as u (u.id)}
-					<div class="user-row">
-						<div>
-							<strong>{u.username}</strong>
-							<span class="tag {u.role === 'admin' ? 'ok' : ''}">
-								{u.role === 'admin' ? 'administrateur' : 'membre'}
-							</span>
-							<span class="user-meta">{u.accounts} compte(s) Kyara</span>
-						</div>
-						<div class="user-actions">
-							<button class="link" onclick={() => resetPassword(u)}>Réinitialiser</button>
-							{#if u.id !== me?.id}
-								<button class="link danger" onclick={() => removeUser(u)}>Supprimer</button>
-							{/if}
-						</div>
-					</div>
-				{:else}
-					<p class="empty">
-						Aucun utilisateur : le tableau de bord est en accès libre. Crée le premier compte
-						pour activer la connexion.
-					</p>
-				{/each}
-			</div>
-
-			<form class="token-form" onsubmit={createUser}>
-				<input
-					type="text"
-					bind:value={newUsername}
-					placeholder="Nom du nouvel utilisateur"
-					autocomplete="off"
-				/>
-				<select bind:value={newRole}>
-					<option value="member">membre</option>
-					<option value="admin">administrateur</option>
-				</select>
-				<button class="primary" type="submit" disabled={newUsername.trim().length < 3}>
-					Créer
-				</button>
-			</form>
-			<p class="note small">Le mot de passe est généré côté serveur et n'est affiché qu'une fois.</p>
-		</section>
-	{/if}
-
 	<footer>
 		<span>Kyara Bot · non-officiel</span>
 		<span>Les actions passent par l'API du site avec ta propre session.</span>
@@ -823,45 +671,13 @@
 </div>
 
 <style>
-	.wrap {
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 26px 20px 60px;
-	}
-
-	header {
+	header.account-bar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 18px;
+		gap: 12px;
 		flex-wrap: wrap;
-		margin-bottom: 22px;
-	}
-
-	.brand-kyara {
-		font-size: 26px;
-		font-weight: 900;
-		letter-spacing: 0.16em;
-		color: var(--gold);
-	}
-	.brand-bot {
-		font-size: 26px;
-		font-weight: 300;
-		letter-spacing: 0.24em;
-		margin-left: 8px;
-	}
-	.brand-sub {
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.18em;
-		color: var(--muted);
-		margin-top: 2px;
-	}
-
-	.head-right {
-		display: flex;
-		align-items: center;
-		gap: 14px;
+		margin-bottom: 16px;
 	}
 
 	.account {
@@ -927,70 +743,6 @@
 	}
 	.status.muted {
 		color: var(--muted);
-	}
-
-	.flash {
-		border-radius: 12px;
-		padding: 10px 14px;
-		font-size: 13px;
-		margin-bottom: 16px;
-		border: 1px solid var(--line);
-	}
-	.flash.ok {
-		background: rgba(52, 211, 153, 0.08);
-		border-color: rgba(52, 211, 153, 0.35);
-		color: #86efac;
-	}
-	.flash.error {
-		background: rgba(248, 113, 113, 0.08);
-		border-color: rgba(248, 113, 113, 0.35);
-		color: #fca5a5;
-	}
-
-	.panel {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent), var(--panel);
-		border: 1px solid var(--line);
-		border-radius: 18px;
-		padding: 18px 20px;
-		min-width: 0;
-	}
-
-	.panel-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-		margin-bottom: 14px;
-	}
-	h2 {
-		margin: 0;
-		font-size: 13px;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: var(--muted);
-		font-weight: 700;
-	}
-	h3 {
-		margin: 18px 0 10px;
-		font-size: 12px;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: var(--muted);
-	}
-	.tag {
-		font-size: 11px;
-		padding: 3px 9px;
-		border-radius: 999px;
-		border: 1px solid var(--line);
-		color: var(--muted);
-	}
-	.tag.ok {
-		color: var(--green);
-		border-color: rgba(52, 211, 153, 0.4);
-	}
-	.tag.warn {
-		color: var(--amber);
-		border-color: rgba(251, 191, 36, 0.4);
 	}
 
 	.grid-main {
@@ -1060,115 +812,11 @@
 		transition: width 0.5s ease;
 	}
 
-	.rows {
-		display: grid;
-		gap: 8px;
-	}
-	.row {
-		display: flex;
-		justify-content: space-between;
-		font-size: 13px;
-		padding: 7px 0;
-		border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
-	}
-	.row span {
-		color: var(--muted);
-	}
-	.row strong {
-		font-family: var(--mono);
-		font-weight: 500;
-	}
-	.row strong.soon {
-		color: var(--gold);
-	}
-
-	.err {
-		margin: 14px 0 0;
-		font-size: 12px;
-		color: #fca5a5;
-		background: rgba(248, 113, 113, 0.07);
-		border: 1px solid rgba(248, 113, 113, 0.25);
-		border-radius: 10px;
-		padding: 8px 10px;
-	}
-
 	.buttons {
 		display: flex;
 		gap: 10px;
 		flex-wrap: wrap;
 	}
-	button.primary,
-	button.ghost {
-		border-radius: 11px;
-		padding: 10px 16px;
-		font-weight: 700;
-		font-size: 13px;
-		border: 1px solid transparent;
-		transition:
-			transform 0.08s ease,
-			opacity 0.2s;
-	}
-	button.primary {
-		background: var(--gold);
-		color: #191307;
-	}
-	button.ghost {
-		background: transparent;
-		border-color: var(--line);
-		color: var(--text);
-	}
-	button.primary:hover:not(:disabled),
-	button.ghost:hover:not(:disabled) {
-		transform: translateY(-1px);
-	}
-	button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-	button.link {
-		background: none;
-		border: 0;
-		padding: 0;
-		color: var(--muted);
-		font-size: 12px;
-		text-decoration: underline;
-	}
-	button.link.danger {
-		color: var(--red);
-		margin-top: 12px;
-	}
-	.danger {
-		color: var(--red);
-	}
-
-	.note {
-		color: var(--muted);
-		font-size: 12.5px;
-		line-height: 1.55;
-		margin: 14px 0 0;
-	}
-	.note.small {
-		font-size: 11.5px;
-	}
-	code,
-	pre {
-		font-family: var(--mono);
-		font-size: 12px;
-	}
-	code {
-		background: #0c0a12;
-		padding: 2px 6px;
-		border-radius: 6px;
-		border: 1px solid var(--line);
-	}
-	pre {
-		background: #0c0a12;
-		border: 1px solid var(--line);
-		border-radius: 10px;
-		padding: 12px;
-		overflow-x: auto;
-	}
-
 	.mini-grid {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
@@ -1400,23 +1048,6 @@
 		opacity: 0.85;
 	}
 
-	.token-form {
-		display: flex;
-		gap: 8px;
-		margin-top: 16px;
-		flex-wrap: wrap;
-	}
-	.token-form input {
-		flex: 1 1 220px;
-		background: #0c0a12;
-		border: 1px solid var(--line);
-		border-radius: 10px;
-		padding: 10px 12px;
-		color: var(--text);
-		font-family: var(--mono);
-		font-size: 12px;
-	}
-
 	.onboard {
 		max-width: 680px;
 		margin: 0 auto;
@@ -1439,31 +1070,6 @@
 		line-height: 1.8;
 		padding-left: 18px;
 	}
-	kbd {
-		background: #0c0a12;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		padding: 1px 5px;
-		font-family: var(--mono);
-		font-size: 11px;
-	}
-
-	.empty {
-		color: var(--muted);
-		font-size: 12.5px;
-		margin: 0;
-	}
-
-	footer {
-		margin-top: 28px;
-		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: wrap;
-		font-size: 11.5px;
-		color: #5f5872;
-	}
-
 	.accounts {
 		display: flex;
 		gap: 8px;
@@ -1523,47 +1129,6 @@
 	.add-panel {
 		margin-bottom: 16px;
 		border-color: rgba(245, 197, 24, 0.25);
-	}
-
-	.users-panel {
-		margin-top: 16px;
-	}
-	.users-list {
-		display: grid;
-		gap: 6px;
-		margin: 14px 0;
-	}
-	.user-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: wrap;
-		padding: 9px 12px;
-		background: #0e0c15;
-		border: 1px solid var(--line);
-		border-radius: 10px;
-		font-size: 13px;
-	}
-	.user-row strong {
-		margin-right: 8px;
-	}
-	.user-meta {
-		font-size: 11.5px;
-		color: var(--muted);
-		margin-left: 8px;
-	}
-	.user-actions {
-		display: flex;
-		gap: 12px;
-	}
-	.token-form select {
-		background: #0c0a12;
-		border: 1px solid var(--line);
-		border-radius: 10px;
-		padding: 10px 12px;
-		color: var(--text);
-		font-size: 12.5px;
 	}
 
 	@media (max-width: 900px) {
