@@ -1,6 +1,7 @@
 <script>
 	import favicon from '#lib/assets/favicon.svg';
 	import { page } from '$app/state';
+	import { headerAccount } from '#lib/header.svelte.js';
 	import '#lib/ui.css';
 
 	let { children, data } = $props();
@@ -23,8 +24,10 @@
 	{#if showBar}
 		<header class="topbar">
 			<a class="brand" href="/">
-				<span class="brand-kyara">KYARA</span>
-				<span class="brand-bot">BOT</span>
+				<span class="brand-line">
+					<span class="brand-kyara">KYARA</span>
+					<span class="brand-bot">BOT</span>
+				</span>
 				<span class="brand-sub">collecteur de boosters gratuits</span>
 			</a>
 
@@ -44,14 +47,36 @@
 			</nav>
 
 			<div class="who">
+				{#if path === '/' && headerAccount.account}
+					<div class="account">
+						{#if headerAccount.account.discord?.avatar}
+							<img
+								src={headerAccount.account.discord.avatar}
+								alt=""
+								width="34"
+								height="34"
+							/>
+						{:else}
+							<div class="avatar-fallback">{(headerAccount.account.pseudo ?? '?')[0]}</div>
+						{/if}
+						<div class="account-text">
+							<strong>{headerAccount.account.pseudo}</strong>
+							<span>◆ {headerAccount.account.chakra ?? 0} chakra</span>
+						</div>
+					</div>
+					{#if headerAccount.status}
+						<div class="status {headerAccount.status.tone}">
+							<i></i>{headerAccount.status.label}
+						</div>
+					{/if}
+				{/if}
+
 				{#if data.me}
 					<span class="who-text">
 						<strong>{data.me.username}</strong>
 						<span>{data.me.role === 'admin' ? 'administrateur' : 'membre'}</span>
 					</span>
 					<button class="link" onclick={logout}>Déconnexion</button>
-				{:else}
-					<span class="who-text">accès libre — crée un compte dans Administration</span>
 				{/if}
 			</div>
 		</header>
@@ -127,9 +152,15 @@
 
 	.brand {
 		display: grid;
+		gap: 3px;
 		text-decoration: none;
 		color: var(--text);
 		line-height: 1.1;
+	}
+	.brand-line {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
 	}
 	.brand-kyara {
 		font-size: 22px;
@@ -141,14 +172,12 @@
 		font-size: 22px;
 		font-weight: 300;
 		letter-spacing: 0.24em;
-		margin-left: 8px;
 	}
 	.brand-sub {
 		font-size: 10px;
 		text-transform: uppercase;
 		letter-spacing: 0.16em;
 		color: var(--muted);
-		margin-top: 3px;
 	}
 
 	nav {

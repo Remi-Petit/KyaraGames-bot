@@ -59,6 +59,72 @@ h3 {
 	border-color: rgba(251, 191, 36, 0.4);
 }
 
+/* Compte Kyara et état du bot, affichés dans la barre de navigation. */
+.account {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	background: var(--panel);
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	padding: 5px 14px 5px 5px;
+}
+.account img,
+.avatar-fallback {
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	object-fit: cover;
+	background: #2a2436;
+	display: grid;
+	place-items: center;
+	font-weight: 700;
+}
+.account-text {
+	display: grid;
+	line-height: 1.15;
+}
+.account-text strong {
+	font-size: 13px;
+}
+.account-text span {
+	font-size: 11px;
+	color: var(--muted);
+}
+
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	font-size: 12px;
+	font-weight: 600;
+	padding: 7px 13px;
+	border-radius: 999px;
+	border: 1px solid var(--line);
+	background: var(--panel);
+}
+.status i {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: currentColor;
+}
+.status.ok {
+	color: var(--green);
+}
+.status.warn {
+	color: var(--amber);
+}
+.status.danger {
+	color: var(--red);
+}
+.status.busy {
+	color: var(--blue);
+}
+.status.muted {
+	color: var(--muted);
+}
+
 .flash {
 	border-radius: 12px;
 	padding: 10px 14px;
@@ -203,8 +269,7 @@ kbd {
 .rows {
 	display: grid;
 	gap: 8px;
-}
-.row {
+}.row {
 	display: flex;
 	justify-content: space-between;
 	font-size: 13px;

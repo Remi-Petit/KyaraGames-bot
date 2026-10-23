@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { nextFreeInMs } from '#lib/nextFree.js';
+	import { headerAccount } from '#lib/header.svelte.js';
 
 	let { data } = $props();
 
@@ -130,6 +131,12 @@
 	const totalCards = $derived(ORDER.reduce((sum, r) => sum + (snap.stats?.byRarity?.[r] ?? 0), 0));
 	const freeTypes = $derived(snap.meta?.freeTypes ?? []);
 
+	// Le compte sélectionné est un état client : la barre de navigation s'y abonne.
+	$effect(() => {
+		headerAccount.account = snap.account ?? null;
+		headerAccount.status = status;
+	});
+
 	function fmtDur(ms) {
 		if (ms == null || !Number.isFinite(ms)) return '—';
 		if (ms <= 0) return 'maintenant';
@@ -246,28 +253,6 @@
 <svelte:head><title>Kyara — Bot</title></svelte:head>
 
 <div class="wrap">
-	<header class="account-bar">
-		{#if snap.account}
-			<div class="account">
-				{#if snap.account.discord?.avatar}
-					<img src={snap.account.discord.avatar} alt="" width="34" height="34" />
-				{:else}
-					<div class="avatar-fallback">{(snap.account.pseudo ?? '?')[0]}</div>
-				{/if}
-				<div class="account-text">
-					<strong>{snap.account.pseudo}</strong>
-					<span>◆ {snap.account.chakra ?? 0} chakra</span>
-				</div>
-			</div>
-		{:else}
-			<span class="note small">Aucun compte Kyara sélectionné</span>
-		{/if}
-
-		<div class="status {status.tone}">
-			<i></i>{status.label}
-		</div>
-	</header>
-
 	{#if flash}
 		<div class="flash {flash.type}">{flash.text}</div>
 	{/if}
@@ -671,80 +656,6 @@
 </div>
 
 <style>
-	header.account-bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: wrap;
-		margin-bottom: 16px;
-	}
-
-	.account {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		background: var(--panel);
-		border: 1px solid var(--line);
-		border-radius: 999px;
-		padding: 5px 14px 5px 5px;
-	}
-	.account img,
-	.avatar-fallback {
-		width: 34px;
-		height: 34px;
-		border-radius: 50%;
-		object-fit: cover;
-		background: #2a2436;
-		display: grid;
-		place-items: center;
-		font-weight: 700;
-	}
-	.account-text {
-		display: grid;
-		line-height: 1.15;
-	}
-	.account-text strong {
-		font-size: 13px;
-	}
-	.account-text span {
-		font-size: 11px;
-		color: var(--muted);
-	}
-
-	.status {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		font-size: 12px;
-		font-weight: 600;
-		padding: 7px 13px;
-		border-radius: 999px;
-		border: 1px solid var(--line);
-		background: var(--panel);
-	}
-	.status i {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: currentColor;
-	}
-	.status.ok {
-		color: var(--green);
-	}
-	.status.warn {
-		color: var(--amber);
-	}
-	.status.danger {
-		color: var(--red);
-	}
-	.status.busy {
-		color: var(--blue);
-	}
-	.status.muted {
-		color: var(--muted);
-	}
-
 	.grid-main {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
