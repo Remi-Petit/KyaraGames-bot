@@ -63,6 +63,22 @@ Dashboard : http://localhost:3000. Changer le port exposé avec `BOT_PORT` (ex. 
 - Le conteneur tourne en utilisateur `node` (uid 1000) ; le healthcheck interroge `/`.
   Derrière un reverse proxy, renseigne `ORIGIN` (décommenté dans le compose).
 
+## Plusieurs comptes
+
+Chaque compte a sa propre clé, ses propres réglages, ses stats, son journal et son
+planificateur (un *runner* indépendant). Dans l'interface : **+ Compte**, puis colle la clé
+du second compte — l'identifiant utilisé est `me.id` (UUID Kyara), donc recoller la clé
+d'un compte existant met à jour ce compte au lieu d'en créer un doublon.
+
+- Maximum 10 comptes (`MAX_ACCOUNTS` dans `src/lib/server/state.js`).
+- Un seul `state.json` : les comptes sont dans `accounts[]`. Un ancien état mono-compte
+  est migré automatiquement au chargement.
+- Le catalogue des boosters et la cadence de régénération sont publics : ils sont
+  récupérés **une fois** pour tous les comptes.
+- Le laissez-passer `x-pass` est mis en cache **par token**, pas global.
+- En Docker, il faut reconstruire l'image pour bénéficier du multi-comptes :
+  `docker compose up -d --build` (le volume `/data` est conservé).
+
 ## Comportement
 
 - À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles

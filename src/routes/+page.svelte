@@ -3,15 +3,25 @@
 
 	let { data } = $props();
 
-	let snap = $state(data.snapshot);
+	let raw = $state(data.snapshot);
 	let now = $state(data.snapshot.now ?? Date.now());
+	let acctId = $state(data.snapshot.selected?.id ?? null);
 	let pending = $state(null);
 	let flash = $state(null);
 	let dirty = $state(false);
-	let settings = $state({ ...data.snapshot.settings });
+	let adding = $state(false);
+	let settings = $state({ ...(data.snapshot.selected?.settings ?? {}) });
 	let tokenInput = $state('');
 	let tokenVisible = $state(false);
 	let tokenBusy = $state(false);
+
+	// Vue aplatie : les sections du dashboard continuent de lire snap.account / snap.bot / ...
+	const snap = $derived({
+		meta: raw.meta,
+		accounts: raw.accounts,
+		maxAccounts: raw.maxAccounts,
+		...(raw.selected ?? {})
+	});
 
 	const RARITY = {
 		C: { label: 'Commune', color: '#8b93a7' },
@@ -25,11 +35,25 @@
 
 	async function refresh() {
 		try {
-			const res = await fetch('/api/state', { cache: 'no-store' });
-			if (res.ok) snap = await res.json();
+			const query = acctId ? `?account=${encodeURIComponent(acctId)}` : '';
+			const res = await fetch('/api/state' + query, { cache: 'no-store' });
+			if (res.ok) {
+				raw = await res.json();
+				if (raw.selected?.id) acctId = raw.selected.id;
+			}
 		} catch {
 			/* hors ligne : on garde le dernier état */
 		}
+	}
+
+	async function selectAccount(id) {
+		if (id === acctId) return;
+		acctId = id;
+		dirty = false;
+		adding = false;
+		tokenInput = '';
+		flash = null;
+		await refresh();
 	}
 
 	onMount(() => {
@@ -105,7 +129,7 @@
 		pending = action;
 		flash = null;
 		try {
-			snap = await send('/api/control', { action });
+			raw = await send('/api/control', { action, accountId: snap.id });
 		} catch (e) {
 			flash = { type: 'error', text: e.message };
 		} finally {
@@ -117,7 +141,11 @@
 		pending = 'settings';
 		flash = null;
 		try {
-			snap = await send('/api/control', { action: 'settings', settings: { ...settings } });
+			raw = await send('/api/control', {
+				action: 'settings',
+				accountId: snap.id,
+				settings: { ...settings }
+			});
 			dirty = false;
 			flash = { type: 'ok', text: 'Réglages enregistrés.' };
 		} catch (e) {
@@ -133,8 +161,12 @@
 		tokenBusy = true;
 		flash = null;
 		try {
-			snap = await send('/api/token', { token: tokenInput.trim() });
+			const next = await send('/api/token', { token: tokenInput.trim() });
+			raw = next;
+			if (next.selected?.id) acctId = next.selected.id;
 			tokenInput = '';
+			adding = false;
+			dirty = false;
 			flash = { type: 'ok', text: 'Clé enregistrée, le bot repart.' };
 		} catch (e) {
 			flash = { type: 'error', text: e.message };
@@ -144,11 +176,13 @@
 	}
 
 	async function clearToken() {
-		if (!confirm('Oublier la clé Kyara ? Le bot sera mis en pause.')) return;
+		const name = snap.pseudo ?? 'ce compte';
+		if (!confirm(`Supprimer ${name} ? Sa clé sera oubliée et son bot arrêté.`)) return;
 		tokenBusy = true;
 		try {
-			snap = await send('/api/token', undefined, 'DELETE');
-			flash = { type: 'ok', text: 'Clé supprimée.' };
+			raw = await send('/api/token', { accountId: snap.id }, 'DELETE');
+			acctId = raw.selected?.id ?? null;
+			flash = { type: 'ok', text: 'Compte supprimé.' };
 		} catch (e) {
 			flash = { type: 'error', text: e.message };
 		} finally {
@@ -201,6 +235,75 @@
 
 	{#if flash}
 		<div class="flash {flash.type}">{flash.text}</div>
+	{/if}
+
+	{#if raw.accounts.length}
+		<div class="accounts">
+			{#each raw.accounts as a (a.id)}
+				<button
+					type="button"
+					class="chip"
+					class:active={a.id === raw.selected?.id}
+					onclick={() => selectAccount(a.id)}
+					title={a.pseudo ?? a.id}
+				>
+					{#if a.avatar}
+						<img src={a.avatar} alt="" />
+					{:else}
+						<span class="chip-fallback">{(a.pseudo ?? '?')[0]}</span>
+					{/if}
+					<span class="chip-body">
+						<strong>{a.pseudo ?? 'Compte'}</strong>
+						<span class="chip-meta">
+							{a.freePacks}/{a.freePacksMax}
+							{#if a.tokenInvalid}· clé invalide{:else if !a.running}· pause{:else if a.busy}· en cours{/if}
+						</span>
+					</span>
+				</button>
+			{/each}
+
+			{#if raw.accounts.length < raw.maxAccounts}
+				<button type="button" class="chip add" onclick={() => (adding = !adding)}>
+					+ Compte
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if adding}
+		<section class="panel add-panel">
+			<div class="panel-head">
+				<h2>Ajouter un compte</h2>
+				<button
+					class="link"
+					onclick={() => {
+						adding = false;
+						tokenInput = '';
+					}}
+				>
+					Annuler
+				</button>
+			</div>
+			<p class="note">
+				Connecte-toi sur kyara.games avec l'autre compte Discord, puis colle sa clé :
+				<code>copy(localStorage.getItem('kyara_token'))</code>
+			</p>
+			<form class="token-form" onsubmit={saveToken}>
+				<input
+					type={tokenVisible ? 'text' : 'password'}
+					bind:value={tokenInput}
+					placeholder="Clé du compte à ajouter"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+				<button class="ghost" type="button" onclick={() => (tokenVisible = !tokenVisible)}>
+					{tokenVisible ? 'Masquer' : 'Voir'}
+				</button>
+				<button class="primary" type="submit" disabled={tokenBusy || !tokenInput.trim()}>
+					{tokenBusy ? 'Vérification…' : 'Ajouter'}
+				</button>
+			</form>
+		</section>
 	{/if}
 
 	{#if !snap.tokenSet}
@@ -497,7 +600,7 @@
 
 				{#if snap.tokenSet}
 					<button class="link danger" onclick={clearToken} disabled={tokenBusy}>
-						Oublier la clé
+						Supprimer ce compte
 					</button>
 				{/if}
 
@@ -1122,6 +1225,67 @@
 		flex-wrap: wrap;
 		font-size: 11.5px;
 		color: #5f5872;
+	}
+
+	.accounts {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-bottom: 16px;
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 9px;
+		padding: 6px 14px 6px 6px;
+		border-radius: 999px;
+		border: 1px solid var(--line);
+		background: var(--panel);
+		color: var(--text);
+		text-align: left;
+	}
+	.chip img,
+	.chip-fallback {
+		width: 30px;
+		height: 30px;
+		border-radius: 50%;
+		object-fit: cover;
+		background: #2a2436;
+		display: grid;
+		place-items: center;
+		font-weight: 700;
+		font-size: 13px;
+	}
+	.chip-body {
+		display: grid;
+		line-height: 1.15;
+	}
+	.chip-body strong {
+		font-size: 12.5px;
+	}
+	.chip-meta {
+		font-size: 11px;
+		color: var(--muted);
+	}
+	.chip.active {
+		border-color: rgba(245, 197, 24, 0.55);
+		background: rgba(245, 197, 24, 0.08);
+	}
+	.chip.add {
+		padding: 9px 14px;
+		color: var(--muted);
+		font-size: 12.5px;
+		font-weight: 600;
+		border-style: dashed;
+	}
+	.chip.add:hover {
+		color: var(--gold);
+		border-color: rgba(245, 197, 24, 0.45);
+	}
+
+	.add-panel {
+		margin-bottom: 16px;
+		border-color: rgba(245, 197, 24, 0.25);
 	}
 
 	@media (max-width: 900px) {
