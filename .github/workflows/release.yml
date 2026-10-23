@@ -1,0 +1,56 @@
+name: Release
+
+# Déclenché uniquement par un tag de version (v0.1.0, v1.2.3, ...).
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Créer une release demande contents: write sur le dépôt.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Vérifier que le tag correspond à package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "package.json: $version / tag: $tag"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::package.json ($version) ne correspond pas au tag ($tag)"
+            exit 1
+          fi
+
+      - name: Installer
+        run: npm ci
+
+      - name: Compiler
+        run: npm run build
+
+      # Toujours publiée : ni --draft ni --prerelease.
+      # --latest la marque comme release courante du dépôt.
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --latest

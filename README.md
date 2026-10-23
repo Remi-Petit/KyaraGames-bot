@@ -93,6 +93,20 @@ d'un compte existant met à jour ce compte au lieu d'en créer un doublon.
 - `crypto.randomUUID()` est envoyé en `x-request-id` à chaque ouverture (idempotence
   côté serveur).
 
+## Releases
+
+Une release est publiée automatiquement à partir d'un tag de version :
+
+```bash
+npm version 0.1.0        # bump package.json + commit + tag v0.1.0
+git push --follow-tags   # déclenche .github/workflows/release.yml
+```
+
+Le workflow vérifie que la version de `package.json` correspond au tag, compile le
+projet, puis crée une release **publiée** (jamais draft, jamais prerelease) avec les
+notes générées par GitHub. Le tag doit toujours passer par ce canal : pas de release
+manuelle dans l'interface.
+
 ## Avertissement
 
 Projet non officiel. Les actions passent par l'API du site avec ta propre session :
