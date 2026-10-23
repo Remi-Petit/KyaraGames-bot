@@ -91,6 +91,21 @@ d'un compte existant met à jour ce compte au lieu d'en créer un doublon.
 - En Docker, il faut reconstruire l'image pour bénéficier du multi-comptes :
   `docker compose up -d --build` (le volume `/data` est conservé).
 
+## Utilisateurs
+
+Le tableau de bord gère plusieurs utilisateurs, chacun avec **ses propres comptes Kyara** :
+
+- **Premier lancement** : accès libre (aucun utilisateur). Le panneau « Utilisateurs » crée le
+  premier compte, qui devient administrateur et **récupère les comptes Kyara existants**.
+- **Variante** : définir `DASHBOARD_PASSWORD` dans `.env` ; la première connexion (n'importe quel
+  nom d'utilisateur) crée l'administrateur avec ce mot de passe et réclame les comptes existants.
+- Ensuite, chaque personne a son identifiant et ne voit que ses comptes. Rôles :
+  `administrateur` (tout + gestion des utilisateurs) / `membre` (ses comptes uniquement).
+- Mots de passe hachés avec scrypt (sel par utilisateur). Sessions = cookie signé HMAC portant un
+  compteur de version : changer un mot de passe invalide les sessions ouvertes de cet utilisateur.
+- Le bot continue de tourner pour **tous** les comptes ; c'est l'accès (interface + API) qui est
+  cloisonné, pas le moteur.
+
 ## Comportement
 
 - À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles

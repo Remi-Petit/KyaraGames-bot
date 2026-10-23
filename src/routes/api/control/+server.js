@@ -1,13 +1,16 @@
 import { json, error } from '@sveltejs/kit';
-import { findAccount, db, save, snapshot, log } from '#lib/server/state.js';
+import { findAccount, canAccess, db, save, snapshot, log } from '#lib/server/state.js';
 import { runnerFor } from '#lib/server/bot.js';
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, Math.round(n)));
 
-export async function POST({ request }) {
+export async function POST({ request, locals }) {
 	const body = await request.json().catch(() => ({}));
 	const account = findAccount(body.accountId);
 	if (!account) throw error(404, 'Compte inconnu');
+	if (!canAccess(locals.user, account)) {
+		throw error(403, 'Ce compte Kyara appartient à un autre utilisateur.');
+	}
 
 	const runner = runnerFor(account.id);
 	const action = body.action;
@@ -50,5 +53,5 @@ export async function POST({ request }) {
 		throw error(400, 'Action inconnue');
 	}
 
-	return json(snapshot(account.id), { headers: { 'cache-control': 'no-store' } });
+	return json(snapshot(account.id, locals.user), { headers: { 'cache-control': 'no-store' } });
 }

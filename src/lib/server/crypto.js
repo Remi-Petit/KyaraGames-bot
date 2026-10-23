@@ -59,3 +59,33 @@ export function safeEqual(a, b) {
 	const bb = Buffer.from(String(b));
 	return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
+
+/* ------------------------------------------------------------------ */
+/* Mots de passe                                                       */
+/* ------------------------------------------------------------------ */
+
+export function hashPassword(password) {
+	const salt = crypto.randomBytes(16).toString('hex');
+	const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+	return { salt, hash };
+}
+
+export function verifyPassword(stored, password) {
+	if (!stored?.salt || !stored?.hash) return false;
+	try {
+		const candidate = crypto.scryptSync(String(password), stored.salt, 64);
+		const expected = Buffer.from(stored.hash, 'hex');
+		return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
+	} catch {
+		return false;
+	}
+}
+
+/** Mot de passe aléatoire lisible (généré à la création d'un utilisateur). */
+export function randomPassword(length = 18) {
+	const alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	const bytes = crypto.randomBytes(length);
+	let out = '';
+	for (let i = 0; i < length; i++) out += alphabet[bytes[i] % alphabet.length];
+	return out;
+}

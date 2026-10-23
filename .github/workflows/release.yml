@@ -40,6 +40,9 @@ jobs:
       - name: Installer
         run: npm ci
 
+      - name: Tests
+        run: npm test
+
       - name: Compiler
         run: npm run build
 

@@ -63,6 +63,8 @@ export function normalizeAccount(raw, fallbackId = 'compte') {
 	const base = defaultStats();
 	return {
 		id: String(raw?.id ?? fallbackId),
+		/** propriétaire (utilisateur du dashboard) — null = héritage v2, réclamé par l'admin */
+		ownerId: raw?.ownerId ?? null,
 		label: raw?.label ?? null,
 		token: raw?.token ?? null,
 		tokenSetAt: raw?.tokenSetAt ?? null,
@@ -86,9 +88,24 @@ export function normalizeAccount(raw, fallbackId = 'compte') {
 
 function defaults() {
 	return {
-		version: 2,
+		version: 3,
+		users: [],
 		meta: { regenMs: 600_000, freePacksMax: 10, packsFetchedAt: null, packs: null },
 		accounts: []
+	};
+}
+
+function normalizeUser(raw) {
+	return {
+		id: String(raw?.id ?? 'user'),
+		username: String(raw?.username ?? 'utilisateur'),
+		salt: raw?.salt ?? '',
+		hash: raw?.hash ?? '',
+		role: raw?.role === 'admin' ? 'admin' : 'member',
+		createdAt: raw?.createdAt ?? new Date().toISOString(),
+		lastLoginAt: raw?.lastLoginAt ?? null,
+		/** incrémenté à chaque changement de mot de passe : invalide les sessions */
+		version: Number(raw?.version ?? 1)
 	};
 }
 
@@ -100,6 +117,7 @@ function migrate(raw) {
 		return {
 			...d,
 			meta: { ...d.meta, ...(raw.meta || {}) },
+			users: Array.isArray(raw.users) ? raw.users.map(normalizeUser) : [],
 			accounts: raw.accounts.map((a) => normalizeAccount(a))
 		};
 	}
@@ -144,7 +162,11 @@ export function save() {
 	if (timer) return;
 	timer = setTimeout(() => {
 		timer = null;
-		flush();
+		try {
+			flush();
+		} catch {
+			/* disque indisponible (volume démonté…) : on réessaiera au prochain save */
+		}
 	}, 150);
 	if (typeof timer.unref === 'function') timer.unref();
 }
@@ -218,6 +240,10 @@ export function pushOpen(account, entry) {
 export function accountSummary(account) {
 	return {
 		id: account.id,
+		ownerId: account.ownerId ?? null,
+		owner: account.ownerId
+			? (db.users.find((u) => u.id === account.ownerId)?.username ?? null)
+			: null,
 		pseudo: account.account?.pseudo ?? null,
 		avatar: account.account?.discord?.avatar ?? null,
 		tokenSet: Boolean(account.token),
@@ -246,9 +272,22 @@ export function accountSnapshot(account) {
 	};
 }
 
-/** Vue globale + détail du compte demandé (ou du premier). */
-export function snapshot(accountId = null) {
-	const selected = findAccount(accountId) ?? db.accounts[0] ?? null;
+/** Comptes visibles pour un utilisateur (admin = tout, membre = les siens). */
+export function visibleAccounts(viewer) {
+	if (!viewer || viewer.role === 'admin') return db.accounts;
+	return db.accounts.filter((a) => a.ownerId === viewer.id);
+}
+
+export function canAccess(viewer, account) {
+	if (!viewer) return true; // mode ouvert : aucun utilisateur configuré
+	if (viewer.role === 'admin') return true;
+	return account.ownerId === viewer.id;
+}
+
+/** Vue globale + détail du compte demandé (ou du premier visible). */
+export function snapshot(accountId = null, viewer = null) {
+	const accounts = visibleAccounts(viewer);
+	const selected = accounts.find((a) => a.id === accountId) ?? accounts[0] ?? null;
 	return {
 		now: Date.now(),
 		maxAccounts: MAX_ACCOUNTS,
@@ -259,7 +298,7 @@ export function snapshot(accountId = null) {
 				.filter((p) => p.free)
 				.map((p) => ({ id: p.id, name: p.name, kanji: p.kanji || null }))
 		},
-		accounts: db.accounts.map(accountSummary),
+		accounts: accounts.map(accountSummary),
 		selected: selected ? accountSnapshot(selected) : null
 	};
 }

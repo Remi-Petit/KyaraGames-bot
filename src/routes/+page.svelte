@@ -10,6 +10,13 @@
 	let flash = $state(null);
 	let dirty = $state(false);
 	let adding = $state(false);
+	let me = $state(data.me);
+	let authMode = data.authMode;
+	let users = $state([]);
+	let usersError = $state(null);
+	let newUsername = $state('');
+	let newRole = $state('member');
+	let generated = $state(null);
 	let settings = $state({ ...(data.snapshot.selected?.settings ?? {}) });
 	let tokenInput = $state('');
 	let tokenVisible = $state(false);
@@ -204,6 +211,74 @@
 	function isTypeOn(id) {
 		return !settings.types || settings.types.includes(id);
 	}
+	async function logout() {
+		await fetch('/api/logout', { method: 'POST' });
+		location.href = '/login';
+	}
+
+	async function loadUsers() {
+		try {
+			const res = await fetch('/api/users', { cache: 'no-store' });
+			const body = await res.json();
+			if (!res.ok) throw new Error(body.message ?? 'Erreur');
+			users = body.users;
+			usersError = null;
+		} catch (e) {
+			usersError = e.message;
+		}
+	}
+
+	$effect(() => {
+		if (me?.role === 'admin' || authMode === 'open') loadUsers();
+	});
+
+	async function createUser(event) {
+		event.preventDefault();
+		usersError = null;
+		try {
+			const res = await fetch('/api/users', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ username: newUsername, role: newRole })
+			});
+			const body = await res.json();
+			if (!res.ok) throw new Error(body.message ?? 'Erreur');
+			generated = { username: body.user.username, password: body.password };
+			newUsername = '';
+			await loadUsers();
+			if (body.loggedIn) location.reload();
+		} catch (e) {
+			usersError = e.message;
+		}
+	}
+
+	async function resetPassword(user) {
+		usersError = null;
+		try {
+			const res = await fetch(`/api/users/${user.id}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ resetPassword: true })
+			});
+			const body = await res.json();
+			if (!res.ok) throw new Error(body.message ?? 'Erreur');
+			generated = { username: user.username, password: body.password };
+		} catch (e) {
+			usersError = e.message;
+		}
+	}
+
+	async function removeUser(user) {
+		if (!confirm(`Supprimer l'utilisateur ${user.username} ?`)) return;
+		usersError = null;
+		try {
+			const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
+			if (!res.ok) throw new Error((await res.json()).message ?? 'Erreur');
+			await loadUsers();
+		} catch (e) {
+			usersError = e.message;
+		}
+	}
 
 	function toggleType(id) {
 		const all = freeTypes.map((t) => t.id);
@@ -241,6 +316,15 @@
 			<div class="status {status.tone}">
 				<i></i>{status.label}
 			</div>
+			{#if me}
+				<div class="account">
+					<div class="account-text">
+						<strong>{me.username}</strong>
+						<span>{me.role === 'admin' ? 'administrateur' : 'membre'}</span>
+					</div>
+				</div>
+				<button class="link" onclick={logout}>Déconnexion</button>
+			{/if}
 		</div>
 	</header>
 
@@ -268,6 +352,7 @@
 						<span class="chip-meta">
 							{a.freePacks}/{a.freePacksMax}
 							{#if a.tokenInvalid}· clé invalide{:else if !a.running}· pause{:else if a.busy}· en cours{/if}
+							{#if me?.role === 'admin' && a.owner && a.owner !== me.username}· {a.owner}{/if}
 						</span>
 					</span>
 				</button>
@@ -637,6 +722,70 @@
 				</p>
 			</section>
 		</div>
+	{/if}
+
+	{#if me?.role === 'admin' || authMode === 'open'}
+		<section class="panel users-panel">
+			<div class="panel-head">
+				<h2>Utilisateurs</h2>
+				<span class="tag">{users.length}</span>
+			</div>
+
+			<p class="note">
+				Chaque personne gère <strong>ses propres comptes Kyara</strong> : elle ne voit ni les tiens
+				ni tes clés, et ses actions ne touchent que ses comptes. Le bot tourne pour tout le monde.
+			</p>
+
+			{#if generated}
+				<div class="flash ok">
+					Mot de passe pour <strong>{generated.username}</strong> :
+					<code>{generated.password}</code> — affiché une seule fois.
+				</div>
+			{/if}
+			{#if usersError}<p class="err">{usersError}</p>{/if}
+
+			<div class="users-list">
+				{#each users as u (u.id)}
+					<div class="user-row">
+						<div>
+							<strong>{u.username}</strong>
+							<span class="tag {u.role === 'admin' ? 'ok' : ''}">
+								{u.role === 'admin' ? 'administrateur' : 'membre'}
+							</span>
+							<span class="user-meta">{u.accounts} compte(s) Kyara</span>
+						</div>
+						<div class="user-actions">
+							<button class="link" onclick={() => resetPassword(u)}>Réinitialiser</button>
+							{#if u.id !== me?.id}
+								<button class="link danger" onclick={() => removeUser(u)}>Supprimer</button>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<p class="empty">
+						Aucun utilisateur : le tableau de bord est en accès libre. Crée le premier compte
+						pour activer la connexion.
+					</p>
+				{/each}
+			</div>
+
+			<form class="token-form" onsubmit={createUser}>
+				<input
+					type="text"
+					bind:value={newUsername}
+					placeholder="Nom du nouvel utilisateur"
+					autocomplete="off"
+				/>
+				<select bind:value={newRole}>
+					<option value="member">membre</option>
+					<option value="admin">administrateur</option>
+				</select>
+				<button class="primary" type="submit" disabled={newUsername.trim().length < 3}>
+					Créer
+				</button>
+			</form>
+			<p class="note small">Le mot de passe est généré côté serveur et n'est affiché qu'une fois.</p>
+		</section>
 	{/if}
 
 	<footer>
@@ -1329,6 +1478,47 @@
 	.add-panel {
 		margin-bottom: 16px;
 		border-color: rgba(245, 197, 24, 0.25);
+	}
+
+	.users-panel {
+		margin-top: 16px;
+	}
+	.users-list {
+		display: grid;
+		gap: 6px;
+		margin: 14px 0;
+	}
+	.user-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		flex-wrap: wrap;
+		padding: 9px 12px;
+		background: #0e0c15;
+		border: 1px solid var(--line);
+		border-radius: 10px;
+		font-size: 13px;
+	}
+	.user-row strong {
+		margin-right: 8px;
+	}
+	.user-meta {
+		font-size: 11.5px;
+		color: var(--muted);
+		margin-left: 8px;
+	}
+	.user-actions {
+		display: flex;
+		gap: 12px;
+	}
+	.token-form select {
+		background: #0c0a12;
+		border: 1px solid var(--line);
+		border-radius: 10px;
+		padding: 10px 12px;
+		color: var(--text);
+		font-size: 12.5px;
 	}
 
 	@media (max-width: 900px) {

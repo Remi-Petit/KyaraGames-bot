@@ -4,6 +4,7 @@ import {
 	upsertAccount,
 	removeAccount,
 	findAccount,
+	canAccess,
 	profileFromMe,
 	MAX_ACCOUNTS,
 	db,
@@ -17,7 +18,7 @@ import { onTokenSaved, onTokenRemoved } from '#lib/server/bot.js';
  * Ajoute un compte ou remplace la clé d'un compte existant.
  * L'identifiant est `me.id` (UUID Kyara) — la seule clé stable entre les sessions.
  */
-export async function POST({ request }) {
+export async function POST({ request, locals }) {
 	const body = await request.json().catch(() => ({}));
 	const token = String(body.token ?? '').trim();
 
@@ -40,12 +41,19 @@ export async function POST({ request }) {
 	}
 
 	const existing = findAccount(me.id);
-	if (!existing && db.accounts.length >= MAX_ACCOUNTS) {
-		throw error(400, `Maximum ${MAX_ACCOUNTS} comptes gérés.`);
+	if (existing && !canAccess(locals.user, existing)) {
+		throw error(403, 'Ce compte Kyara appartient à un autre utilisateur.');
+	}
+
+	const ownerId = existing?.ownerId ?? locals.user?.id ?? null;
+	const owned = db.accounts.filter((a) => a.ownerId === ownerId).length;
+	if (!existing && owned >= MAX_ACCOUNTS) {
+		throw error(400, `Maximum ${MAX_ACCOUNTS} comptes Kyara par utilisateur.`);
 	}
 
 	upsertAccount({
 		id: me.id,
+		ownerId,
 		token: seal(token),
 		tokenSetAt: new Date().toISOString(),
 		tokenInvalid: false,
@@ -62,11 +70,11 @@ export async function POST({ request }) {
 	);
 	onTokenSaved(me.id);
 
-	return json(snapshot(me.id), { headers: { 'cache-control': 'no-store' } });
+	return json(snapshot(me.id, locals.user), { headers: { 'cache-control': 'no-store' } });
 }
 
 /** Supprime un compte (et sa clé). */
-export async function DELETE({ request, url }) {
+export async function DELETE({ request, url, locals }) {
 	let body = {};
 	try {
 		body = await request.json();
@@ -79,9 +87,12 @@ export async function DELETE({ request, url }) {
 
 	const account = findAccount(id);
 	if (!account) throw error(404, 'Compte inconnu');
+	if (!canAccess(locals.user, account)) {
+		throw error(403, 'Ce compte Kyara appartient à un autre utilisateur.');
+	}
 
 	onTokenRemoved(id);
 	removeAccount(id);
 
-	return json(snapshot(), { headers: { 'cache-control': 'no-store' } });
+	return json(snapshot(null, locals.user), { headers: { 'cache-control': 'no-store' } });
 }

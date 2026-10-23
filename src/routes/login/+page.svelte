@@ -1,4 +1,5 @@
 <script>
+	let username = $state('');
 	let password = $state('');
 	let busy = $state(false);
 	let message = $state(null);
@@ -11,7 +12,7 @@
 			const res = await fetch('/api/login', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ password })
+				body: JSON.stringify({ username, password })
 			});
 			if (res.ok) {
 				location.href = '/';
@@ -32,7 +33,12 @@
 <main>
 	<form onsubmit={submit}>
 		<div class="brand"><span>KYARA</span> BOT</div>
-		<p class="hint">Accès protégé par mot de passe.</p>
+		<p class="hint">Accès individuel au tableau de bord.</p>
+
+		<label>
+			Nom d'utilisateur
+			<input type="text" bind:value={username} autocomplete="username" required />
+		</label>
 
 		<label>
 			Mot de passe
