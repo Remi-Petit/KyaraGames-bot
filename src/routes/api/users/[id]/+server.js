@@ -36,9 +36,13 @@ export async function PATCH({ params, request, locals }) {
 		if (input.topic !== undefined) n.topic = String(input.topic).trim();
 		if (input.onRare !== undefined) n.onRare = Boolean(input.onRare);
 		if (input.onErrors !== undefined) n.onErrors = Boolean(input.onErrors);
-		// `null` efface le jeton, une chaîne vide le laisse inchangé (le champ est masqué).
+		if (input.username !== undefined) n.username = String(input.username ?? '').trim();
+		// `null` efface le secret, une chaîne vide le laisse inchangé (le champ est masqué).
 		if (input.token === null) n.token = null;
 		else if (typeof input.token === 'string' && input.token.trim()) n.token = seal(input.token.trim());
+		if (input.password === null) n.password = null;
+		else if (typeof input.password === 'string' && input.password.trim())
+			n.password = seal(input.password.trim());
 	}
 
 	let password;
@@ -62,7 +66,13 @@ export async function POST({ params, locals }) {
 		priority: 3,
 		tags: ['white_check_mark']
 	});
-	if (!sent.ok) throw error(400, `Envoi impossible : ${sent.reason}`);
+	if (!sent.ok) {
+		const hint =
+			sent.status === 403
+				? ' — topic protégé : renseigne un jeton d’accès (tk_…) ou un identifiant + mot de passe.'
+				: '';
+		throw error(400, `Envoi impossible : ${sent.reason}${hint}`);
+	}
 	return json({ ok: true });
 }
 

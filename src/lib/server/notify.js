@@ -19,7 +19,9 @@ export function notifyConfig(user) {
 	return {
 		url: String(n.url || 'https://ntfy.sh'),
 		topic: String(n.topic).trim(),
-		token: unseal(n.token)
+		token: unseal(n.token),
+		username: n.username || null,
+		password: unseal(n.password)
 	};
 }
 

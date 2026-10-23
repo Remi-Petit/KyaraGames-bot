@@ -107,6 +107,9 @@ function normalizeNotify(raw) {
 		topic: String(raw?.topic ?? ''),
 		/** jeton ntfy, chiffré comme les clés Kyara (jamais renvoyé au client) */
 		token: raw?.token ?? null,
+		/** variante identifiant + mot de passe (`Basic`), si l'instance n'utilise pas de jetons */
+		username: String(raw?.username ?? ''),
+		password: raw?.password ?? null,
 		onRare: raw?.onRare !== false,
 		onErrors: raw?.onErrors !== false
 	};

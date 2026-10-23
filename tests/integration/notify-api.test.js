@@ -136,4 +136,45 @@ describe('notification de test', () => {
 		);
 		expect(e?.status).toBe(400);
 	});
+
+	it('explique quoi faire quand le serveur refuse (403)', async () => {
+		const { routes, admin, member } = await setup();
+		await routes.userById.PATCH(
+			makeEvent({
+				user: admin,
+				params: { id: member.id },
+				body: { notify: { enabled: true, topic: 'kyara-bob' } }
+			})
+		);
+
+		globalThis.fetch = vi.fn(
+			async () => new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
+		);
+
+		const e = await caught(() =>
+			routes.userById.POST(makeEvent({ user: admin, params: { id: member.id }, method: 'POST' }))
+		);
+		expect(e?.status).toBe(400);
+		expect(e.body.message).toContain('HTTP 403');
+		expect(e.body.message).toContain('identifiant + mot de passe');
+	});
+
+	it('enregistre un identifiant/mot de passe, le mot de passe chiffré', async () => {
+		const { routes, state, crypto, admin, member } = await setup();
+
+		const res = await routes.userById.PATCH(
+			makeEvent({
+				user: admin,
+				params: { id: member.id },
+				body: { notify: { enabled: true, topic: 't', username: 'mia', password: 'secret' } }
+			})
+		);
+		const body = await res.json();
+
+		expect(body.user.notify).toMatchObject({ username: 'mia', passwordSet: true });
+		expect(JSON.stringify(body)).not.toContain('secret');
+
+		const stored = state.db.users.find((u) => u.id === member.id).notify;
+		expect(crypto.unseal(stored.password)).toBe('secret');
+	});
 });

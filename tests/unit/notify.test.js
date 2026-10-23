@@ -125,3 +125,45 @@ describe('en-têtes ntfy', () => {
 		expect(asciiHeader('Shōnen Mix')).toBe('Shonen Mix');
 	});
 });
+
+describe('authentification ntfy', () => {
+	const capture = async (options) => {
+		const sent = [];
+		globalThis.fetch = vi.fn(async (url, init) => {
+			sent.push({ url: String(url), init });
+			return new Response('ok', { status: 200 });
+		});
+		const { sendNtfy } = await import('../../src/lib/server/ntfy.js');
+		const res = await sendNtfy({ topic: 't', message: 'm', ...options });
+		return { res, sent };
+	};
+
+	it('préfère le jeton (Bearer) s’il est fourni', async () => {
+		const { sent } = await capture({ token: 'tk_abc', username: 'mia', password: 'secret' });
+		expect(sent[0].init.headers.Authorization).toBe('Bearer tk_abc');
+	});
+
+	it('utilise identifiant + mot de passe en Basic sinon', async () => {
+		const { sent } = await capture({ username: 'mia', password: 'secret' });
+		expect(sent[0].init.headers.Authorization).toBe(
+			`Basic ${Buffer.from('mia:secret').toString('base64')}`
+		);
+	});
+
+	it('n’envoie aucun en-tête d’authentification sans identifiants', async () => {
+		const { sent } = await capture({});
+		expect(sent[0].init.headers.Authorization).toBeUndefined();
+	});
+
+	it('remonte le message d’erreur du serveur (403)', async () => {
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ code: 40301, error: 'forbidden' }), { status: 403 })
+		);
+		const { sendNtfy } = await import('../../src/lib/server/ntfy.js');
+		const res = await sendNtfy({ topic: 't', message: 'm' });
+
+		expect(res).toMatchObject({ ok: false, status: 403 });
+		expect(res.reason).toBe('HTTP 403 — forbidden');
+	});
+});

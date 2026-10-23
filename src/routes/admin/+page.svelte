@@ -16,6 +16,8 @@
 		url: 'https://ntfy.sh',
 		topic: '',
 		token: '',
+		username: '',
+		password: '',
 		onRare: true,
 		onErrors: true
 	});
@@ -103,6 +105,8 @@
 			url: u.notify.url,
 			topic: u.notify.topic,
 			token: '',
+			username: u.notify.username ?? '',
+			password: '',
 			onRare: u.notify.onRare,
 			onErrors: u.notify.onErrors
 		};
@@ -130,6 +134,7 @@
 		return guard('notify-save', async () => {
 			await call(`/api/users/${notifyUserId}`, 'PATCH', { notify: { ...nf } });
 			nf.token = '';
+			nf.password = '';
 			notifyFlash = 'Réglages enregistrés.';
 			await invalidateAll();
 		});
@@ -338,10 +343,31 @@
 						<input
 							type="password"
 							bind:value={nf.token}
-							placeholder={notifyTarget?.notify.tokenSet ? 'inchangé' : 'bearer token'}
+							placeholder={notifyTarget?.notify.tokenSet ? 'inchangé' : 'tk_…'}
 							autocomplete="off"
 						/>
 					</label>
+
+					<div class="fields">
+						<label class="field">
+							<span>Identifiant (facultatif)</span>
+							<input type="text" bind:value={nf.username} autocomplete="off" />
+						</label>
+						<label class="field">
+							<span>Mot de passe</span>
+							<input
+								type="password"
+								bind:value={nf.password}
+								placeholder={notifyTarget?.notify.passwordSet ? 'inchangé' : 'mot de passe ntfy'}
+								autocomplete="off"
+							/>
+						</label>
+					</div>
+					<p class="note small">
+						Si ton instance ntfy demande une connexion (403 au test) : mets un <strong>jeton</strong>
+						d'accès (<code>tk_…</code>), ou bien ton <strong>identifiant + mot de passe</strong>. Le
+						jeton est utilisé en priorité s'il est renseigné.
+					</p>
 
 					<div class="switches">
 						<label class="switch">

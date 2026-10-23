@@ -60,6 +60,8 @@ export function publicUser(user) {
 			url: user.notify?.url ?? 'https://ntfy.sh',
 			topic: user.notify?.topic ?? '',
 			tokenSet: Boolean(user.notify?.token),
+			username: user.notify?.username ?? '',
+			passwordSet: Boolean(user.notify?.password),
 			onRare: user.notify?.onRare !== false,
 			onErrors: user.notify?.onErrors !== false
 		}
@@ -101,6 +103,8 @@ export function createUser({ username, password, role = 'member' }) {
 			url: 'https://ntfy.sh',
 			topic: '',
 			token: null,
+			username: '',
+			password: null,
 			onRare: true,
 			onErrors: true
 		}

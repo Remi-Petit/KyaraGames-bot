@@ -22,14 +22,20 @@ export function asciiHeader(text) {
 
 /**
  * Publie un message sur un topic ntfy.
- * @param {{ url?: string, topic?: string, token?: string | null, title?: string,
- *   message?: string, priority?: number, tags?: string[], timeoutMs?: number }} opts
- * @returns {Promise<{ ok: boolean, reason?: string }>}
+ *
+ * Authentification : `token` (jeton d'accès, `Bearer`) sinon `username` +
+ * `password` (`Basic`) — les deux sont acceptés par ntfy.
+ * @param {{ url?: string, topic?: string, token?: string | null, username?: string | null,
+ *   password?: string | null, title?: string, message?: string, priority?: number,
+ *   tags?: string[], timeoutMs?: number }} opts
+ * @returns {Promise<{ ok: boolean, status?: number, reason?: string }>}
  */
 export async function sendNtfy({
 	url,
 	topic,
 	token,
+	username,
+	password,
 	title,
 	message,
 	priority = 3,
@@ -45,7 +51,11 @@ export async function sendNtfy({
 	if (safeTitle) headers.Title = safeTitle;
 	if (priority) headers.Priority = String(priority);
 	if (tags.length) headers.Tags = tags.join(',');
-	if (token) headers.Authorization = `Bearer ${token}`;
+	if (token) {
+		headers.Authorization = `Bearer ${token}`;
+	} else if (username && password) {
+		headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+	}
 
 	try {
 		const res = await fetch(`${server}/${encodeURIComponent(name)}`, {
@@ -54,8 +64,22 @@ export async function sendNtfy({
 			body: String(message ?? ''),
 			signal: AbortSignal.timeout(timeoutMs)
 		});
-		if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
-		return { ok: true };
+		if (!res.ok) {
+			// ntfy répond `{"error":"..."}` : on le remonte plutôt qu'un simple code.
+			const text = await res.text().catch(() => '');
+			let detail = '';
+			try {
+				detail = JSON.parse(text)?.error ?? '';
+			} catch {
+				detail = text.slice(0, 80);
+			}
+			return {
+				ok: false,
+				status: res.status,
+				reason: detail ? `HTTP ${res.status} — ${detail}` : `HTTP ${res.status}`
+			};
+		}
+		return { ok: true, status: res.status };
 	} catch (e) {
 		return { ok: false, reason: e?.message ?? 'réseau' };
 	}
