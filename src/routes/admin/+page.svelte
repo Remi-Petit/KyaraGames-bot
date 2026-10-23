@@ -375,11 +375,6 @@
 			{/if}
 		</section>
 	{/if}
-
-	<footer>
-		<span>Kyara Bot · non-officiel</span>
-		<span>Les actions passent par l'API du site avec la session de chaque propriétaire.</span>
-	</footer>
 </div>
 
 <style>

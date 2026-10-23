@@ -83,6 +83,13 @@
 	{/if}
 
 	{@render children()}
+
+	{#if showBar}
+		<footer class="page-foot">
+			<span>Kyara Bot · non-officiel · <span class="version">v{data.version}</span></span>
+			<span>Les actions passent par l'API du site avec la session de chaque propriétaire.</span>
+		</footer>
+	{/if}
 </div>
 
 <style>
@@ -213,7 +220,16 @@
 		align-items: center;
 		gap: 12px;
 	}
-	.who-text {
+
+	.page-foot {
+		max-width: 1180px;
+		margin: 0 auto;
+		padding: 0 20px 40px;
+	}
+	.version {
+		color: var(--muted);
+		font-family: var(--mono);
+	}	.who-text {
 		display: grid;
 		line-height: 1.2;
 		text-align: right;

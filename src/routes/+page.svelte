@@ -669,11 +669,6 @@
 			</section>
 		</div>
 	{/if}
-
-	<footer>
-		<span>Kyara Bot · non-officiel</span>
-		<span>Les actions passent par l'API du site avec ta propre session.</span>
-	</footer>
 </div>
 
 <style>
