@@ -12,6 +12,10 @@
 #
 #   echo "<PAT avec read:packages>" | docker login ghcr.io -u <user> --password-stdin
 
+# Le nom de projet est forcé pour partager le même volume que ../docker-compose.yml
+# (`kyaragames_kyara-data`) : passer de l'un à l'autre ne perd pas la clé enregistrée.
+name: kyaragames
+
 services:
   kyara-bot:
     # Épingle une version précise en production ; `latest` suit la dernière release.
