@@ -1,0 +1,38 @@
+name: CI
+
+# Tests sur chaque poussée et chaque pull request — la release ne les rejoue que
+# pour être sûre de partir d'un vert.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Une nouvelle poussée annule la précédente : inutile de tester un commit périmé.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      # Le build attrape ce que les tests ne voient pas (SSR, imports $lib, adapter).
+      - name: Compiler
+        run: npm run build

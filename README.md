@@ -71,7 +71,7 @@ docker compose -f docker/docker-compose.yml up -d
 
 Aucun build : l'image vient de GitHub Container Registry
 (`ghcr.io/remi-petit/kyaragames-bot`), publiée à chaque release par le workflow.
-Pour des redéploiements prévisibles, épingle une version (`:0.2.0`) plutôt que `:latest`.
+Pour des redéploiements prévisibles, épingle une version (`:0.2.1`) plutôt que `:latest`.
 Le package est **privé par défaut** : passe-le en public dans les réglages du package, ou
 fais un `docker login ghcr.io` avec un PAT `read:packages` sur la machine cible.
 
@@ -93,9 +93,16 @@ d'un compte existant met à jour ce compte au lieu d'en créer un doublon.
 
 ## Utilisateurs
 
+Le tableau de bord s'organise en deux pages, reliées par la barre de navigation :
+
+- **Dashboard** (`/`) — la réserve, le compte sélectionné, le pilotage du bot, l'historique.
+- **Administration** (`/admin`) — les utilisateurs (créer, changer le rôle, réinitialiser un mot
+  de passe, supprimer) et une vue d'ensemble des comptes Kyara rattachés. Page réservée aux
+  administrateurs (403 pour un membre) ; le lien n'apparaît dans la navigation que pour eux.
+
 Le tableau de bord gère plusieurs utilisateurs, chacun avec **ses propres comptes Kyara** :
 
-- **Premier lancement** : accès libre (aucun utilisateur). Le panneau « Utilisateurs » crée le
+- **Premier lancement** : accès libre (aucun utilisateur). La page **Administration** crée le
   premier compte, qui devient administrateur et **récupère les comptes Kyara existants**.
 - **Variante** : définir `DASHBOARD_PASSWORD` dans `.env` ; la première connexion (n'importe quel
   nom d'utilisateur) crée l'administrateur avec ce mot de passe et réclame les comptes existants.
@@ -140,6 +147,13 @@ Une release est publiée automatiquement à partir d'un tag de version :
 npm version 0.1.0        # bump package.json + commit + tag v0.1.0
 git push --follow-tags   # déclenche .github/workflows/release.yml
 ```
+
+Deux workflows complètent le tableau :
+
+| Workflow | Déclencheur | Rôle |
+|---|---|---|
+| `ci.yml` | chaque poussée sur `master`, chaque PR | `npm ci` → `npm test` → `npm run build` |
+| `release.yml` | tag `v*` | vérifie que le tag correspond à `package.json`, rejoue les tests, publie la release puis l'image GHCR |
 
 Le workflow vérifie que la version de `package.json` correspond au tag, compile le
 projet, puis crée une release **publiée** (jamais draft, jamais prerelease) avec les
