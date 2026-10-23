@@ -63,6 +63,18 @@ Dashboard : http://localhost:3000. Changer le port exposé avec `BOT_PORT` (ex. 
 - Le conteneur tourne en utilisateur `node` (uid 1000) ; le healthcheck interroge `/`.
   Derrière un reverse proxy, renseigne `ORIGIN` (décommenté dans le compose).
 
+### Image publiée (serveur, sans build)
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Aucun build : l'image vient de GitHub Container Registry
+(`ghcr.io/remi-petit/kyaragames-bot`), publiée à chaque release par le workflow.
+Pour des redéploiements prévisibles, épingle une version (`:0.1.0`) plutôt que `:latest`.
+Le package est **privé par défaut** : passe-le en public dans les réglages du package, ou
+fais un `docker login ghcr.io` avec un PAT `read:packages` sur la machine cible.
+
 ## Plusieurs comptes
 
 Chaque compte a sa propre clé, ses propres réglages, ses stats, son journal et son

@@ -1,0 +1,36 @@
+# Déploiement à partir de l'image publiée sur GitHub Container Registry.
+#
+# Contrairement au ../docker-compose.yml (qui construit l'image localement),
+# ce fichier ne fait aucun build : il tire une version déjà publiée par le
+# workflow .github/workflows/release.yml au moment du tag.
+#
+#   docker compose -f docker/docker-compose.yml up -d
+#
+# Le package GHCR est privé par défaut au premier push. Soit tu le passes en
+# public (Package settings -> Change visibility -> Public), soit tu te connectes
+# une fois sur la machine cible :
+#
+#   echo "<PAT avec read:packages>" | docker login ghcr.io -u <user> --password-stdin
+
+services:
+  kyara-bot:
+    # Épingle une version précise en production ; `latest` suit la dernière release.
+    image: ghcr.io/remi-petit/kyaragames-bot:latest
+    container_name: kyara-bot
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+
+    ports:
+      - '${BOT_PORT:-3000}:3000'
+
+    environment:
+      KYARA_DATA_DIR: /data
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      # ORIGIN: 'https://bot.example.com'
+
+    volumes:
+      - kyara-data:/data
+
+volumes:
+  kyara-data:
