@@ -117,6 +117,18 @@
 		nextFreeInMs(snap.account?.nextFreeAt ?? null, snap.meta?.regenMs ?? null, estFree, cap, now)
 	);
 	const nextRunMs = $derived(snap.bot?.nextRunAt ? Date.parse(snap.bot.nextRunAt) - now : null);
+	// Pack du jour : dernier constat du bot (`/me/packs`), valable pour le jour indiqué.
+	const daily = $derived(snap.daily ?? null);
+	const dailyFresh = $derived(Boolean(daily) && daily.day === new Date(now).toISOString().slice(0, 10));
+	const dailyLabel = $derived(
+		snap.settings?.dailyPack === false
+			? 'désactivé'
+			: !dailyFresh
+				? '—'
+				: (daily?.left ?? 0) > 0
+					? 'disponible'
+					: 'pris'
+	);
 	const status = $derived(
 		snap.tokenInvalid
 			? { label: 'Clé à renouveler', tone: 'danger' }
@@ -393,6 +405,15 @@
 						<span>Prochain booster</span>
 						<strong class:soon={nextFreeMs != null && nextFreeMs < 60_000}>
 							{nextFreeMs != null ? fmtDur(nextFreeMs) : estFree >= cap ? 'réserve pleine' : '—'}
+						</strong>
+					</div>
+					<div class="row">
+						<span>Pack du jour</span>
+						<strong
+							class:soon={dailyFresh && (daily?.left ?? 0) > 0}
+							title={daily ? `Relevé : ${fmtDateTime(daily.checkedAt)}` : undefined}
+						>
+							{dailyLabel}
 						</strong>
 					</div>
 					<div class="row">

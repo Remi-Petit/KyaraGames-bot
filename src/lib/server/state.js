@@ -30,7 +30,9 @@ function defaultBot() {
 		nextRunAt: null,
 		lastError: null,
 		lastPackId: null,
-		lastOpenedAt: null
+		lastOpenedAt: null,
+		/** jour dont le pack quotidien a déjà été journalisé (évite une ligne par cycle) */
+		dailyLoggedDay: null
 	};
 }
 
@@ -73,6 +75,8 @@ export function normalizeAccount(raw, fallbackId = 'compte') {
 		/** dernier GET /api/me réussi : les compteurs affichés datent de là */
 		checkedAt: raw?.checkedAt ?? null,
 		account: raw?.account ?? null,
+		/** dernier constat sur le pack du jour : { day, left, checkedAt } */
+		daily: raw?.daily ?? null,
 		createdAt: raw?.createdAt ?? new Date().toISOString(),
 		bot: { ...defaultBot(), ...(raw?.bot || {}) },
 		settings: { ...defaultSettings(), ...(raw?.settings || {}) },
@@ -254,6 +258,8 @@ export function accountSummary(account) {
 		running: account.bot.running,
 		busy: account.bot.busy,
 		checkedAt: account.checkedAt ?? account.bot.lastRunAt ?? null,
+		/** { day, left, checkedAt } — null tant que rien n'a été relevé */
+		daily: account.daily ?? null,
 		freePacks: account.account?.freePacks ?? 0,
 		freePacksMax: account.account?.freePacksMax ?? db.meta.freePacksMax,
 		nextFreeAt: account.account?.nextFreeAt ?? null,

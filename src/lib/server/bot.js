@@ -306,16 +306,40 @@ export class Runner {
 		return opened;
 	}
 
+	/** Relevé en lecture seule du pack du jour (`/me/packs`). */
+	async readDaily(acct) {
+		const limits = await this.client.packState();
+		const day = limits?.day ?? new Date().toISOString().slice(0, 10);
+		const left = limits?.limits?.daily?.left ?? 1;
+		acct.daily = { day, left, checkedAt: new Date().toISOString() };
+		return { day, left };
+	}
+
 	async openDaily(acct) {
 		if (!acct.settings.dailyPack) return;
 		try {
-			const limits = await this.client.packState();
-			const left = limits?.limits?.daily?.left ?? 1;
-			if (left <= 0) return;
+			const { day, left } = await this.readDaily(acct);
+
+			if (left <= 0) {
+				// Un cycle par jour suffit à le dire : les suivants n'apprennent rien.
+				if (acct.bot.dailyLoggedDay !== day) {
+					acct.bot.dailyLoggedDay = day;
+					log(acct, 'info', 'Pack du jour : déjà pris aujourd’hui.');
+				}
+				return;
+			}
+
 			const result = await this.client.openPack('daily');
 			recordOpen(acct, { id: 'daily', name: 'Pack du jour' }, result, 'daily');
+			acct.bot.dailyLoggedDay = day;
+			acct.daily = { day, left: 0, checkedAt: new Date().toISOString() };
 		} catch (e) {
 			if (e instanceof KyaraError && (e.code === 'daily_limit' || e.code === 'already_claimed')) {
+				const day = new Date().toISOString().slice(0, 10);
+				if (acct.bot.dailyLoggedDay !== day) {
+					acct.bot.dailyLoggedDay = day;
+					log(acct, 'info', 'Pack du jour : déjà pris aujourd’hui.');
+				}
 				return;
 			}
 			log(acct, 'warn', `Pack du jour : ${e.message}`);
@@ -377,6 +401,8 @@ export class Runner {
 		if (this.busy) return;
 		const me = await this.client.me();
 		applyMe(acct, me);
+		// Le pack du jour fait partie du relevé : une lecture, pas une ouverture.
+		if (acct.settings.dailyPack !== false) await this.readDaily(acct).catch(() => {});
 		this.schedule();
 	}
 
