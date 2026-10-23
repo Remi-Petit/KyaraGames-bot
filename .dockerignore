@@ -1,0 +1,17 @@
+node_modules
+.svelte-kit
+build
+.git
+.gitignore
+.vscode
+
+# Données locales et secrets : jamais dans l'image
+.data
+.env
+.env.*
+
+# Divers
+npm-debug.log*
+README.md
+Dockerfile
+docker-compose.yml

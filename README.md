@@ -47,6 +47,22 @@ DASHBOARD_PASSWORD=un-mot-de-passe   # protège l'accès au tableau de bord
 KYARA_DATA_DIR=C:\chemin\data        # dossier des données
 ```
 
+## Docker
+
+```bash
+docker compose up -d --build
+```
+
+Dashboard : http://localhost:3000. Changer le port exposé avec `BOT_PORT` (ex. `BOT_PORT=8080`).
+
+- Mot de passe : mets `DASHBOARD_PASSWORD=...` dans le `.env` à la racine du projet (Compose le lit
+  automatiquement) ou lance `DASHBOARD_PASSWORD=... docker compose up -d`.
+- Données : volume nommé `kyara-data` monté sur `/data` (clé chiffrée, `key.bin`, état, journal).
+  Supprimer le volume = il faudra recoller la clé.
+- Logs : `docker compose logs -f`. Après une modification du code : `docker compose up -d --build`.
+- Le conteneur tourne en utilisateur `node` (uid 1000) ; le healthcheck interroge `/`.
+  Derrière un reverse proxy, renseigne `ORIGIN` (décommenté dans le compose).
+
 ## Comportement
 
 - À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles

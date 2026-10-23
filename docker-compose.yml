@@ -1,0 +1,25 @@
+services:
+  kyara-bot:
+    build: .
+    image: kyara-bot:latest
+    container_name: kyara-bot
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+
+    ports:
+      - '${BOT_PORT:-3000}:3000'
+
+    environment:
+      # Dossier persistant : clé chiffrée + clé de déchiffrement + état + journal
+      KYARA_DATA_DIR: /data
+      # Recommandé dès que le port est exposé hors de ta machine
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      # Si tu sers le dashboard derrière un domaine / reverse proxy :
+      # ORIGIN: 'https://bot.example.com'
+
+    volumes:
+      - kyara-data:/data
+
+volumes:
+  kyara-data:
