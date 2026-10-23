@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { nextFreeInMs } from '#lib/nextFree.js';
 
 	let { data } = $props();
 
@@ -115,8 +116,10 @@
 		})()
 	);
 	const pctEst = $derived(cap > 0 ? Math.min(100, (estFree / cap) * 100) : 0);
+	// `nextFreeAt` est figé au dernier relevé : `nextFreeInMs` le fait rouler
+	// d'une régénération à l'autre, sinon l'échéance reste « maintenant ».
 	const nextFreeMs = $derived(
-		snap.account?.nextFreeAt ? Date.parse(snap.account.nextFreeAt) - now : null
+		nextFreeInMs(snap.account?.nextFreeAt ?? null, snap.meta?.regenMs ?? null, estFree, cap, now)
 	);
 	const nextRunMs = $derived(snap.bot?.nextRunAt ? Date.parse(snap.bot.nextRunAt) - now : null);
 	const status = $derived(
@@ -492,7 +495,7 @@
 					<div class="row">
 						<span>Prochain booster</span>
 						<strong class:soon={nextFreeMs != null && nextFreeMs < 60_000}>
-							{nextFreeMs != null ? fmtDur(nextFreeMs) : '—'}
+							{nextFreeMs != null ? fmtDur(nextFreeMs) : estFree >= cap ? 'réserve pleine' : '—'}
 						</strong>
 					</div>
 					<div class="row">
