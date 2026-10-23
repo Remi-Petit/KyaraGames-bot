@@ -96,9 +96,10 @@ d'un compte existant met à jour ce compte au lieu d'en créer un doublon.
 Le tableau de bord s'organise en deux pages, reliées par la barre de navigation :
 
 - **Dashboard** (`/`) — la réserve, le compte sélectionné, le pilotage du bot, l'historique.
-- **Administration** (`/admin`) — les utilisateurs (créer, changer le rôle, réinitialiser un mot
-  de passe, supprimer) et une vue d'ensemble des comptes Kyara rattachés. Page réservée aux
-  administrateurs (403 pour un membre) ; le lien n'apparaît dans la navigation que pour eux.
+- **Administration** (`/admin`) — deux onglets : **Utilisateurs** (créer, changer le rôle,
+  réinitialiser un mot de passe, supprimer, vue d'ensemble des comptes Kyara) et
+  **Notifications** (ntfy). Page réservée aux administrateurs (403 pour un membre) ; le lien
+  n'apparaît dans la navigation que pour eux.
 
 Le tableau de bord gère plusieurs utilisateurs, chacun avec **ses propres comptes Kyara** :
 
@@ -112,6 +113,25 @@ Le tableau de bord gère plusieurs utilisateurs, chacun avec **ses propres compt
   compteur de version : changer un mot de passe invalide les sessions ouvertes de cet utilisateur.
 - Le bot continue de tourner pour **tous** les comptes ; c'est l'accès (interface + API) qui est
   cloisonné, pas le moteur.
+
+## Notifications ntfy
+
+Onglet **Notifications** de `/admin`. Chaque utilisateur a **sa propre** configuration (l'admin
+peut éditer celle de chacun) :
+
+| Champ | Rôle |
+|---|---|
+| Serveur | `https://ntfy.sh` par défaut, ou une instance auto-hébergée |
+| Topic | celui auquel tu t'abonnes dans l'appli ntfy |
+| Jeton | facultatif (`Authorization: Bearer`), chiffré au repos comme les clés Kyara |
+| Cases | *Légendaire ou mythique*, *Erreurs (clé refusée, réseau)* |
+
+Envoi : `POST <serveur>/<topic>`, corps texte UTF-8, en-têtes `Title` (ramené en ASCII : les
+en-têtes HTTP n'acceptent pas les accents), `Priority` (5 pour un mythique, 4 pour une erreur),
+`Tags`. Un `POST /api/users/<id>` envoie un message de test avec la config **enregistrée**.
+
+Les erreurs sont tempérées : au plus une notification par demi-heure et par compte, pour ne pas
+inonder quand le site est en panne. Un envoi qui échoue n'interrompt jamais le bot.
 
 ## Temps réel
 

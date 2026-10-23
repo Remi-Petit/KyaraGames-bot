@@ -100,6 +100,18 @@ function defaults() {
 	};
 }
 
+function normalizeNotify(raw) {
+	return {
+		enabled: Boolean(raw?.enabled),
+		url: String(raw?.url || 'https://ntfy.sh'),
+		topic: String(raw?.topic ?? ''),
+		/** jeton ntfy, chiffré comme les clés Kyara (jamais renvoyé au client) */
+		token: raw?.token ?? null,
+		onRare: raw?.onRare !== false,
+		onErrors: raw?.onErrors !== false
+	};
+}
+
 function normalizeUser(raw) {
 	return {
 		id: String(raw?.id ?? 'user'),
@@ -110,7 +122,8 @@ function normalizeUser(raw) {
 		createdAt: raw?.createdAt ?? new Date().toISOString(),
 		lastLoginAt: raw?.lastLoginAt ?? null,
 		/** incrémenté à chaque changement de mot de passe : invalide les sessions */
-		version: Number(raw?.version ?? 1)
+		version: Number(raw?.version ?? 1),
+		notify: normalizeNotify(raw?.notify)
 	};
 }
 

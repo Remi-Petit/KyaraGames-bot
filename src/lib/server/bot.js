@@ -1,6 +1,7 @@
 import { db, findAccount, save, log, pushOpen, profileFromMe } from './state.js';
 import { createClient, publicApi, KyaraError } from './kyara.js';
 import { unseal } from './crypto.js';
+import { notifyRare, notifyError } from './notify.js';
 
 const RARITY_ORDER = ['C', 'U', 'R', 'E', 'L', 'M'];
 const MIN = 60_000;
@@ -151,6 +152,8 @@ function recordOpen(acct, pack, result, kind = 'free') {
 				? ` (${cards.map((c) => c.name).slice(0, 3).join(', ')}${cards.length > 3 ? '…' : ''})`
 				: '')
 	);
+	// Notification ntfy si le propriétaire en a configuré une (jamais bloquant).
+	notifyRare(acct, entry).catch(() => {});
 	return entry;
 }
 
@@ -353,14 +356,17 @@ export class Runner {
 				acct.bot.running = false;
 				acct.bot.lastError = 'Clé refusée (401) — recolle une clé valide depuis kyara.games.';
 				log(acct, 'error', `401 sur ${context} : la clé n’est plus valide. Bot mis en pause.`);
+				notifyError(acct, 'Clé refusée (401) — le bot est en pause.').catch(() => {});
 				return;
 			}
 			acct.bot.lastError = `${context} · ${e.code}${e.message ? ` (${e.message})` : ''}`;
 			log(acct, 'error', `${context} · ${e.code}${e.message ? ` — ${e.message}` : ''}`);
+			notifyError(acct, `${context} · ${e.code}${e.message ? ` — ${e.message}` : ''}`).catch(() => {});
 			return;
 		}
 		acct.bot.lastError = `${context} · ${e?.message ?? e}`;
 		log(acct, 'error', `${context} · ${e?.message ?? e}`);
+		notifyError(acct, `${context} · ${e?.message ?? e}`).catch(() => {});
 	}
 
 	/* ---------------- contrôle ---------------- */

@@ -912,44 +912,6 @@
 		margin-top: 16px;
 	}
 
-	.fields {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 12px;
-	}
-	.fields label {
-		display: grid;
-		gap: 6px;
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-	}
-	.fields input {
-		background: #0c0a12;
-		border: 1px solid var(--line);
-		border-radius: 9px;
-		padding: 9px 11px;
-		color: var(--text);
-		font-family: var(--mono);
-	}
-
-	.switches {
-		display: grid;
-		gap: 8px;
-		margin-top: 16px;
-	}
-	.switch {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		font-size: 13px;
-	}
-	.switch input,
-	.type input {
-		accent-color: var(--gold);
-	}
-
 	.types {
 		display: flex;
 		flex-wrap: wrap;

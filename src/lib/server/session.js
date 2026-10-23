@@ -46,7 +46,7 @@ export function currentUser(cookieValue) {
 	return user;
 }
 
-/** Vue publique d'un utilisateur (jamais le hash). */
+/** Vue publique d'un utilisateur (jamais le hash ni le jeton ntfy). */
 export function publicUser(user) {
 	if (!user) return null;
 	return {
@@ -54,7 +54,15 @@ export function publicUser(user) {
 		username: user.username,
 		role: user.role,
 		createdAt: user.createdAt,
-		lastLoginAt: user.lastLoginAt
+		lastLoginAt: user.lastLoginAt,
+		notify: {
+			enabled: Boolean(user.notify?.enabled),
+			url: user.notify?.url ?? 'https://ntfy.sh',
+			topic: user.notify?.topic ?? '',
+			tokenSet: Boolean(user.notify?.token),
+			onRare: user.notify?.onRare !== false,
+			onErrors: user.notify?.onErrors !== false
+		}
 	};
 }
 
@@ -87,7 +95,15 @@ export function createUser({ username, password, role = 'member' }) {
 		role: db.users.length === 0 || role === 'admin' ? 'admin' : 'member',
 		createdAt: new Date().toISOString(),
 		lastLoginAt: null,
-		version: 1
+		version: 1,
+		notify: {
+			enabled: false,
+			url: 'https://ntfy.sh',
+			topic: '',
+			token: null,
+			onRare: true,
+			onErrors: true
+		}
 	};
 
 	db.users.push(user);
