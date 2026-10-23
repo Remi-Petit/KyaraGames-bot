@@ -71,7 +71,7 @@ docker compose -f docker/docker-compose.yml up -d
 
 Aucun build : l'image vient de GitHub Container Registry
 (`ghcr.io/remi-petit/kyaragames-bot`), publiée à chaque release par le workflow.
-Pour des redéploiements prévisibles, épingle une version (`:0.2.1`) plutôt que `:latest`.
+Pour des redéploiements prévisibles, épingle une version (`:0.2.2`) plutôt que `:latest`.
 Le package est **privé par défaut** : passe-le en public dans les réglages du package, ou
 fais un `docker login ghcr.io` avec un PAT `read:packages` sur la machine cible.
 
