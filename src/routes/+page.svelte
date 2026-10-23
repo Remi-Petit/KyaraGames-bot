@@ -17,6 +17,7 @@
 	let newUsername = $state('');
 	let newRole = $state('member');
 	let generated = $state(null);
+	let streamState = $state('connecting');
 	let settings = $state({ ...(data.snapshot.selected?.settings ?? {}) });
 	let tokenInput = $state('');
 	let tokenVisible = $state(false);
@@ -64,12 +65,36 @@
 	}
 
 	onMount(() => {
-		const poll = setInterval(refresh, 2000);
 		const tick = setInterval(() => (now = Date.now()), 1000);
+		// Filet de sécurité : si le flux tombe (proxy, veille…), on repolle doucement.
+		const poll = setInterval(refresh, 20_000);
 		return () => {
 			clearInterval(poll);
 			clearInterval(tick);
 		};
+	});
+
+	// Un flux SSE par compte sélectionné : le serveur pousse l'état dès qu'il change.
+	$effect(() => {
+		const query = acctId ? `?account=${encodeURIComponent(acctId)}` : '';
+		const source = new EventSource('/api/stream' + query);
+
+		source.onopen = () => (streamState = 'live');
+		source.onmessage = (event) => {
+			streamState = 'live';
+			try {
+				const next = JSON.parse(event.data);
+				raw = next;
+				if (!acctId && next.selected?.id) acctId = next.selected.id;
+			} catch {
+				/* trame illisible : ignorée */
+			}
+		};
+		source.onerror = () => {
+			streamState = 'offline';
+		};
+
+		return () => source.close();
 	});
 
 	$effect(() => {
@@ -440,7 +465,7 @@
 				<div class="panel-head">
 					<h2>Réserve</h2>
 					<div class="head-actions">
-						<span class="tag">gratuit</span>
+						<span class="live {streamState}">{streamState === 'live' ? 'temps réel' : 'reconnexion…'}</span>
 						<button class="link" onclick={() => act('sync')} disabled={pending !== null}>
 							{pending === 'sync' ? 'Relevé…' : 'Synchroniser'}
 						</button>
@@ -993,6 +1018,23 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
+	}
+	.live {
+		font-size: 10.5px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		padding: 3px 8px;
+		border-radius: 999px;
+		border: 1px solid var(--line);
+		color: var(--muted);
+	}
+	.live.live {
+		color: var(--green);
+		border-color: rgba(52, 211, 153, 0.35);
+	}
+	.live.offline {
+		color: var(--amber);
+		border-color: rgba(251, 191, 36, 0.35);
 	}
 	.stale {
 		margin: 0 0 16px;

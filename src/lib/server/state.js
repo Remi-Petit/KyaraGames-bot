@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { dataFile } from './config.js';
+import { publish } from './bus.js';
 
 const FILE = dataFile('state.json');
 const LOG_LIMIT = 300;
@@ -167,6 +168,8 @@ export function save() {
 		} catch {
 			/* disque indisponible (volume démonté…) : on réessaiera au prochain save */
 		}
+		// Prévient les flux SSE qu'un état vient de changer.
+		publish();
 	}, 150);
 	if (typeof timer.unref === 'function') timer.unref();
 }

@@ -106,6 +106,18 @@ Le tableau de bord gère plusieurs utilisateurs, chacun avec **ses propres compt
 - Le bot continue de tourner pour **tous** les comptes ; c'est l'accès (interface + API) qui est
   cloisonné, pas le moteur.
 
+## Temps réel
+
+L'interface ne sonde plus le serveur toutes les 2 s : elle s'abonne à `GET /api/stream`
+en **Server-Sent Events**. Le serveur pousse l'état complet du compte visible dès qu'il
+change (ouverture, réglage, pause, journal), avec un lissage de 250 ms pour absorber les
+rafales. Un `GET /api/state` toutes les 20 s sert de filet de sécurité, et `EventSource`
+se reconnecte seul.
+
+Pourquoi SSE plutôt qu'un WebSocket : le flux est unidirectionnel (serveur → navigateur),
+les actions restent en `POST` JSON, et adapter-node sert le flux sur le même port — pas de
+serveur custom ni de dépendance supplémentaire.
+
 ## Comportement
 
 - À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles
