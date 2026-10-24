@@ -2,7 +2,7 @@ import { db, findAccount, save, log, pushOpen, profileFromMe } from './state.js'
 import { createClient, publicApi, KyaraError } from './kyara.js';
 import { unseal } from './crypto.js';
 import { runMissions } from './missions.js';
-import { notifyRare, notifyError } from './notify.js';
+import { notifyRare, notifyError, notifyMarket } from './notify.js';
 
 const RARITY_ORDER = ['C', 'U', 'R', 'E', 'L', 'M'];
 const MIN = 60_000;
@@ -185,6 +185,12 @@ export function computeNextRun(acct, now = Date.now()) {
 		}
 	}
 
+	// Booster bonus ou cadeau en attente : ça ne régénère pas, on repasse vite.
+	const grants = profile?.grants ?? {};
+	const pendingGift =
+		(profile?.bonusPacks ?? 0) > 0 || Object.values(grants).some((n) => Number(n) > 0);
+	if (pendingGift) next = Math.min(next, now + 5 * MIN);
+
 	// Garde-fous : jamais deux passages à moins d'une minute, et backoff après erreur.
 	if (acct.bot.lastRunAt) {
 		const last = Date.parse(acct.bot.lastRunAt);
@@ -248,6 +254,9 @@ export class Runner {
 			const me = await this.client.me();
 			applyMe(acct, me);
 
+			// Ventes / achats / échanges survenus depuis le dernier passage.
+			await this.pollNotifications(acct).catch(() => 0);
+
 			await ensureConfig();
 			await ensurePacks();
 
@@ -258,6 +267,8 @@ export class Runner {
 			await this.openAllFree(acct);
 			await this.openDaily(acct);
 			await this.runMissionsStep(acct);
+			// Les récompenses de mission peuvent offrir des boosters : on les ouvre tout de suite.
+			await this.openGrants(acct);
 
 			const after = await this.client.me().catch(() => null);
 			if (after) applyMe(acct, after);
@@ -304,7 +315,8 @@ export class Runner {
 		}
 
 		let opened = 0;
-		let free = acct.account?.freePacks ?? 0;
+		// Les boosters bonus (missions, événements) s'ouvrent sur les mêmes boosters gratuits.
+		let free = (acct.account?.freePacks ?? 0) + (acct.account?.bonusPacks ?? 0);
 		const max = acct.settings.maxPerRun ?? 10;
 
 		while (free > 0 && opened < max) {
@@ -315,10 +327,15 @@ export class Runner {
 				acct.bot.lastOpenedAt = new Date().toISOString();
 				opened += 1;
 
-				if (typeof result?.user?.freePacks === 'number') free = result.user.freePacks;
-				else free -= 1;
-				if (typeof result?.user?.chakra === 'number' && acct.account) {
-					acct.account.chakra = result.user.chakra;
+				if (typeof result?.user?.freePacks === 'number') {
+					free = result.user.freePacks + (result.user.bonusPacks ?? 0);
+				} else free -= 1;
+				if (acct.account) {
+					if (typeof result?.user?.chakra === 'number') acct.account.chakra = result.user.chakra;
+					if (typeof result?.user?.freePacks === 'number') acct.account.freePacks = result.user.freePacks;
+					if (typeof result?.user?.bonusPacks === 'number') {
+						acct.account.bonusPacks = result.user.bonusPacks;
+					}
 				}
 
 				pack = pickNextPack(acct);
@@ -370,6 +387,86 @@ export class Runner {
 			}
 			log(acct, 'warn', `Pack du jour : ${e.message}`);
 		}
+	}
+
+	/**
+	 * Boosters offerts (`me.grants` : golden, chest, sceau…) : ouverts sans chakra.
+	 * Le premier passage après un cadeau les consomme ; le suivant les oublie.
+	 */
+	async openGrants(acct) {
+		const grants = acct.account?.grants ?? {};
+		const ids = Object.keys(grants).filter((id) => Number(grants[id]) > 0);
+		if (!ids.length) return 0;
+
+		let opened = 0;
+		for (const id of ids) {
+			const pack = (db.meta.packs || []).find((p) => p.id === id) ?? { id, name: id };
+			let left = Number(grants[id]) || 0;
+			while (left > 0 && opened < 10) {
+				// Le cadeau a pu être consommé ailleurs (onglet ouvert) : on vérifie juste avant,
+				// sinon l'ouverture serait facturée en chakra.
+				const fresh = await this.client.me().catch(() => null);
+				if (fresh) {
+					const current = Array.isArray(fresh.grants) ? {} : (fresh.grants ?? {});
+					if (!(Number(current[id]) > 0)) break;
+					if (typeof fresh.chakra === 'number' && acct.account) acct.account.chakra = fresh.chakra;
+				}
+				try {
+					const result = await this.client.openPack(id);
+					recordOpen(acct, pack, result, 'grant');
+					left -= 1;
+					opened += 1;
+					if (acct.account) {
+						if (typeof result?.user?.chakra === 'number') acct.account.chakra = result.user.chakra;
+						if (result?.user?.grants && !Array.isArray(result.user.grants)) {
+							acct.account.grants = result.user.grants;
+						}
+					}
+					if (opened < 10) {
+						await sleep(acct.settings.humanDelay === false ? 400 : rand(2500, 5200));
+					}
+				} catch (e) {
+					log(acct, 'warn', `Booster offert (${pack.name}) : ${e.message}`);
+					break;
+				}
+			}
+		}
+		return opened;
+	}
+
+	/**
+	 * Pousse en ntfy les transactions du marché (vente, achat, échange, enchère).
+	 * Le marqueur `notifSeenAt` évite de rejouer l'historique au premier passage.
+	 */
+	async pollNotifications(acct) {
+		const res = await this.client.call('/me/notifications');
+		const items = Array.isArray(res?.items) ? res.items : [];
+		if (!items.length) return 0;
+
+		const newest = items.reduce(
+			(max, n) => (!max || Date.parse(n.createdAt) > Date.parse(max.createdAt) ? n : max),
+			null
+		);
+		const since = Date.parse(acct.bot.notifSeenAt ?? '');
+
+		// Premier passage : on s'aligne sur le plus récent sans rejouer l'historique.
+		if (!Number.isFinite(since)) {
+			acct.bot.notifSeenAt = newest?.createdAt ?? new Date().toISOString();
+			save();
+			return 0;
+		}
+
+		const fresh = items
+			.filter((n) => Date.parse(n.createdAt) > since)
+			.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+
+		let sent = 0;
+		for (const item of fresh) {
+			if (await notifyMarket(acct, item).catch(() => false)) sent += 1;
+		}
+		acct.bot.notifSeenAt = newest?.createdAt ?? acct.bot.notifSeenAt;
+		save();
+		return sent;
 	}
 
 	handleError(acct, e, context) {

@@ -124,7 +124,7 @@ peut éditer celle de chacun) :
 | Serveur | `https://ntfy.sh` par défaut, ou une instance auto-hébergée |
 | Topic | celui auquel tu t'abonnes dans l'appli ntfy |
 | Jeton | facultatif (`Authorization: Bearer`), chiffré au repos comme les clés Kyara |
-| Cases | *Légendaire ou mythique*, *Erreurs (clé refusée, réseau)* |
+| Cases | *Légendaire ou mythique*, *Erreurs (clé refusée, réseau)*, *Achats, ventes et échanges* |
 
 Envoi : `POST <serveur>/<topic>`, corps texte UTF-8, en-têtes `Title` (ramené en ASCII : les
 en-têtes HTTP n'acceptent pas les accents), `Priority` (5 pour un mythique, 4 pour une erreur),
@@ -132,6 +132,10 @@ en-têtes HTTP n'acceptent pas les accents), `Priority` (5 pour un mythique, 4 p
 
 Les erreurs sont tempérées : au plus une notification par demi-heure et par compte, pour ne pas
 inonder quand le site est en panne. Un envoi qui échoue n'interrompt jamais le bot.
+
+**Marché** : à chaque passage, le bot relit `GET /api/me/notifications` et pousse les
+nouveautés (vente avec le net, achat, offre d'échange, surenchère). Le marqueur
+`bot.notifSeenAt` évite de rejouer l'historique au premier démarrage.
 
 ## Temps réel
 
@@ -161,7 +165,7 @@ POST /api/me/progress/claim  → { kind } ou { kind, id }
 | Récompenses en attente | `POST /claim {kind:"all"}` |
 | Série de connexion | `POST /claim {kind:"streak"}` (booster doré au 7ᵉ jour) |
 | `details-3` — consulter 3 fiches | `GET /api/characters/:id/detail` ×3 |
-| `wishlist-3` | `PUT /api/me/wishlist/:id` ×3 |
+| `wishlist-3` | `PUT /api/me/wishlist/:id` ×3 — uniquement des persos **non possédés** (le marché les fournit : le serveur refuse `409 wish_owned`) |
 | `recycle-1` — recycler un doublon | `POST /api/me/collection/:id/recycle {qty:1}` |
 | `list-1` — mettre une carte en vente | `POST /api/market/listings {characterId, type:"fixed", price, durationHours}` |
 | Événement tag | `POST /api/me/tag-event/claim` (seulement si le serveur l'annonce) |
@@ -173,14 +177,29 @@ Garde-fous :
 - prix de l'annonce : le moins cher du marché (ventes immédiates) **− 1**, sinon la médiane
   7 jours, sinon `sellPrice` (réglage, 1 ◆ par défaut) ;
 - un seul passage toutes les 15 minutes, et uniquement sur les quêtes non validées ;
-- `open-5` (« ouvrir 5 boosters ») est déjà couvert par les ouvertures normales.
+- `open-5` (« ouvrir 5 boosters ») est déjà couvert par les ouvertures normales ;
+- après `{kind:"all"}`, un second relevé réclame individuellement toute quête terminée
+  qu'une famille aurait laissée de côté (`{kind, id}`).
 
 Trois interrupteurs dans les réglages : missions, ventes/recyclage, événements.
 
+## Boosters bonus et offerts
+
+Deux compteurs de `GET /api/me` sont pris en compte, en plus des boosters gratuits :
+
+- **`bonusPacks`** : boosters bonus (missions, événements). Ils s'ouvrent sur les mêmes
+  types gratuits et sont comptés avec `freePacks` dans la boucle d'ouverture.
+- **`grants`** : boosters offerts, par type (`{ golden: 1 }`, `chest`, `seal-mythic`…).
+  Ils sont ouverts après les missions, sans chakra, via `POST /api/packs/<id>/open`.
+
+Le planificateur repasse au bout de 5 minutes tant qu'il reste un bonus ou un cadeau en
+attente : ça ne régénère pas, rien ne sert d'attendre l'intervalle de 90 minutes.
+
 ## Comportement
 
-- À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles
-  (max 10), un par type, en round-robin sur les types activés.
+- À chaque passage : `GET /api/me`, relevé des notifications de marché, puis ouverture de
+  **tous** les boosters disponibles (gratuits + bonus, max 10), un par type, en round-robin
+  sur les types activés.
 - Le prochain passage est planifié à `min(intervalle max, instant où la réserve
   atteindrait 10)`. C'est ce qui garantit qu'aucun booster n'est perdu, tout en restant
   à ~1 h 30 entre deux passages quand la réserve est basse.

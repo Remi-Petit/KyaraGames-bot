@@ -19,7 +19,8 @@
 		username: '',
 		password: '',
 		onRare: true,
-		onErrors: true
+		onErrors: true,
+		onMarket: true
 	});
 
 	const me = $derived(data.me);
@@ -108,7 +109,8 @@
 			username: u.notify.username ?? '',
 			password: '',
 			onRare: u.notify.onRare,
-			onErrors: u.notify.onErrors
+			onErrors: u.notify.onErrors,
+			onMarket: u.notify.onMarket !== false
 		};
 	}
 
@@ -377,6 +379,10 @@
 						<label class="switch">
 							<input type="checkbox" bind:checked={nf.onErrors} />
 							<span>Erreurs (clé refusée, réseau)</span>
+						</label>
+						<label class="switch">
+							<input type="checkbox" bind:checked={nf.onMarket} />
+							<span>Achats, ventes et échanges</span>
 						</label>
 					</div>
 

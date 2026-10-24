@@ -36,6 +36,7 @@ export async function PATCH({ params, request, locals }) {
 		if (input.topic !== undefined) n.topic = String(input.topic).trim();
 		if (input.onRare !== undefined) n.onRare = Boolean(input.onRare);
 		if (input.onErrors !== undefined) n.onErrors = Boolean(input.onErrors);
+		if (input.onMarket !== undefined) n.onMarket = Boolean(input.onMarket);
 		if (input.username !== undefined) n.username = String(input.username ?? '').trim();
 		// `null` efface le secret, une chaîne vide le laisse inchangé (le champ est masqué).
 		if (input.token === null) n.token = null;

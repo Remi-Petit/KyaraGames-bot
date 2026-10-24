@@ -118,6 +118,62 @@ describe('notifications ntfy', () => {
 	});
 });
 
+describe('notifications de marché', () => {
+	it('pousse une vente avec le net', async () => {
+		const { account, sent, notifyMod } = await setup();
+
+		const ok = await notifyMod.notifyMarket(account, {
+			type: 'sold',
+			data: { name: 'Rally Vincent', price: 5, net: 4 }
+		});
+
+		expect(ok).toBe(true);
+		expect(sent).toHaveLength(1);
+		expect(sent[0].init.headers.Title).toBe('Kyara - vente');
+		expect(sent[0].init.headers.Tags).toBe('moneybag');
+		expect(String(sent[0].init.body)).toContain('Vente · Rally Vincent — 5 ◆ (net 4 ◆)');
+	});
+
+	it('pousse un achat et une offre d’échange', async () => {
+		const { account, sent, notifyMod } = await setup();
+
+		expect(
+			await notifyMod.notifyMarket(account, {
+				type: 'bought',
+				data: { name: 'Tanya Degurechaff', price: 126 }
+			})
+		).toBe(true);
+		expect(
+			await notifyMod.notifyMarket(account, {
+				type: 'trade_offer',
+				data: { from: 'Shawn-9', tradeId: 't1' }
+			})
+		).toBe(true);
+
+		expect(sent).toHaveLength(2);
+		expect(sent[0].init.headers.Title).toBe('Kyara - achat');
+		expect(String(sent[0].init.body)).toContain('Achat · Tanya Degurechaff — 126 ◆');
+		expect(sent[1].init.headers.Title).toBe('Kyara - echange');
+		expect(String(sent[1].init.body)).toContain('Échange proposé par Shawn-9');
+	});
+
+	it('ignore les types qui ne concernent pas le marché', async () => {
+		const { account, sent, notifyMod } = await setup();
+
+		expect(await notifyMod.notifyMarket(account, { type: 'friend_request', data: {} })).toBe(false);
+		expect(sent).toHaveLength(0);
+	});
+
+	it('respecte la case « achats, ventes et échanges » décochée', async () => {
+		const { account, sent, notifyMod } = await setup({ notify: { onMarket: false } });
+
+		expect(
+			await notifyMod.notifyMarket(account, { type: 'sold', data: { name: 'X', price: 1 } })
+		).toBe(false);
+		expect(sent).toHaveLength(0);
+	});
+});
+
 describe('en-têtes ntfy', () => {
 	it('retire les accents du titre', async () => {
 		const { asciiHeader } = await import('../../src/lib/server/ntfy.js');

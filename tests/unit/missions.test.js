@@ -122,12 +122,13 @@ describe('runMissions', () => {
 
 	it('réclame la série puis toutes les récompenses en attente', async () => {
 		const acct = account();
-		const kc = client((pathname) => {
+		const kc = client((pathname, opts) => {
 			if (pathname === '/me/progress') {
 				return progress({ claimable: 2, streak: { claimedToday: false } });
 			}
 			if (pathname === '/me/progress/claim') {
-				return { gained: { chakra: 45 }, user: { chakra: 399 } };
+				const chakra = opts.body?.kind === 'streak' ? 20 : 45;
+				return { gained: { chakra }, user: { chakra: 399 } };
 			}
 			return {};
 		});
@@ -137,7 +138,7 @@ describe('runMissions', () => {
 		const claims = kc.calls.filter((c) => c.path === '/me/progress/claim');
 		expect(claims.map((c) => c.body)).toEqual([{ kind: 'streak' }, { kind: 'all' }]);
 		expect(res.claimed).toBe(2);
-		expect(res.chakra).toBe(45);
+		expect(res.chakra).toBe(65); // série 20 + récompenses 45
 		expect(acct.account.chakra).toBe(399);
 	});
 
@@ -147,6 +148,36 @@ describe('runMissions', () => {
 		const res = await missions.runMissions(kc, acct, { force: true });
 		expect(res.claimed).toBe(0);
 		expect(kc.calls.filter((c) => c.path === '/me/progress/claim')).toHaveLength(0);
+	});
+
+	it('réclame quand même une quête que « all » aurait laissée de côté', async () => {
+		const acct = account();
+		let reads = 0;
+		const kc = client((pathname, opts) => {
+			if (pathname === '/me/progress') {
+				reads += 1;
+				// Au second relevé, le haut fait `sold-1` est terminé mais pas réclamé.
+				return reads === 1
+					? progress({ claimable: 1 })
+					: progress({
+							claimable: 1,
+							achievements: [{ id: 'sold-1', done: true, claimed: false }]
+						});
+			}
+			if (pathname === '/me/progress/claim') {
+				const chakra = opts.body?.kind === 'all' ? 20 : 10;
+				return { gained: { chakra }, user: { chakra: 500 } };
+			}
+			return {};
+		});
+
+		const res = await missions.runMissions(kc, acct, { force: true });
+
+		const claims = kc.calls.filter((c) => c.path === '/me/progress/claim').map((c) => c.body);
+		expect(claims).toEqual([{ kind: 'all' }, { kind: 'achievement', id: 'sold-1' }]);
+		expect(res.claimed).toBe(2);
+		expect(res.chakra).toBe(30);
+		expect(acct.account.chakra).toBe(500);
 	});
 
 	it('consulte exactement le nombre de fiches manquantes, sans répéter les mêmes', async () => {
@@ -282,16 +313,27 @@ describe('runMissions', () => {
 		expect(recycle[0].body).toEqual({ qty: 1 });
 	});
 
-	it('ajoute les persos manquants à la wishlist', async () => {
+	it('ajoute à la wishlist des persos non possédés, pris sur le marché', async () => {
 		const acct = account();
 		const kc = client((pathname) => {
 			if (pathname === '/me/progress') {
 				return progress({ welcome: { quests: [quest('wishlist-3', { target: 3 })] } });
 			}
 			if (pathname === '/me/collection') {
-				return [{ characterId: 25 }, { characterId: 91 }, { characterId: 126 }];
+				return [{ characterId: 25 }, { characterId: 91 }];
 			}
 			if (pathname === '/me/wishlist') return [];
+			if (pathname === '/market/listings?sort=newest') {
+				return {
+					items: [
+						{ character: { id: 25 } },
+						{ character: { id: 91 } },
+						{ character: { id: 126 } },
+						{ character: { id: 127 } },
+						{ character: { id: 128 } }
+					]
+				};
+			}
 			return {};
 		});
 
@@ -299,9 +341,9 @@ describe('runMissions', () => {
 
 		const wishes = kc.calls.filter((c) => c.path.startsWith('/me/wishlist/'));
 		expect(wishes.map((c) => c.path)).toEqual([
-			'/me/wishlist/25',
-			'/me/wishlist/91',
-			'/me/wishlist/126'
+			'/me/wishlist/126',
+			'/me/wishlist/127',
+			'/me/wishlist/128'
 		]);
 		expect(wishes.every((c) => c.method === 'PUT')).toBe(true);
 	});

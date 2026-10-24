@@ -86,3 +86,93 @@ export async function notifyError(account, text) {
 export function resetNotifyCooldown() {
 	lastErrorAt.clear();
 }
+
+/* ------------------------------------------------------------------ */
+/* Marché : ventes, achats, échanges                                   */
+/* ------------------------------------------------------------------ */
+
+/** Types de notification `/me/notifications` qui méritent un push. */
+const MARKET_TYPES = new Set([
+	'sold',
+	'bought',
+	'trade_offer',
+	'trade_accepted',
+	'outbid',
+	'auction_won',
+	'auction_lost'
+]);
+
+const MARKET_TITLES = {
+	sold: 'Kyara — vente',
+	bought: 'Kyara — achat',
+	trade_offer: 'Kyara — échange',
+	trade_accepted: 'Kyara — échange accepté',
+	outbid: 'Kyara — surenchère',
+	auction_won: 'Kyara — enchère gagnée',
+	auction_lost: 'Kyara — enchère perdue'
+};
+
+const MARKET_TAGS = {
+	sold: ['moneybag'],
+	bought: ['shopping_cart'],
+	trade_offer: ['handshake'],
+	trade_accepted: ['handshake'],
+	outbid: ['warning'],
+	auction_won: ['trophy'],
+	auction_lost: ['warning']
+};
+
+const fmt = (n) => (Number.isFinite(n) ? `${n} ◆` : 'prix inconnu');
+
+/** Une ligne lisible par type, à partir du `data` renvoyé par Kyara. */
+function marketLine(type, data = {}) {
+	const name = data.name ?? data.character?.name ?? data.characterName ?? 'une carte';
+	switch (type) {
+		case 'sold': {
+			const net = Number.isFinite(data.net) ? ` (net ${fmt(data.net)})` : '';
+			return `Vente · ${name} — ${fmt(data.price)}${net}`;
+		}
+		case 'bought':
+			return `Achat · ${name} — ${fmt(data.price)}`;
+		case 'trade_offer':
+			return `Échange proposé par ${data.from ?? data.pseudo ?? 'un joueur'}`;
+		case 'trade_accepted':
+			return `Échange accepté avec ${data.with ?? data.from ?? 'un joueur'}`;
+		case 'outbid':
+			return `Surenchère · ${name} — ${fmt(data.price)}`;
+		case 'auction_won':
+			return `Enchère gagnée · ${name} — ${fmt(data.price)}`;
+		case 'auction_lost':
+			return `Enchère perdue · ${name}`;
+		default:
+			return type;
+	}
+}
+
+/**
+ * Transaction de marché (vente, achat, échange, enchère) → ntfy.
+ * Silencieux si le propriétaire a coupé « achats & ventes ».
+ * @returns {Promise<boolean>} true si un push est parti
+ */
+export async function notifyMarket(account, item) {
+	const type = item?.type;
+	if (!MARKET_TYPES.has(type)) return false;
+
+	const user = db.users.find((u) => u.id === account?.ownerId);
+	const cfg = notifyConfig(user);
+	if (!cfg) return false;
+	if (user.notify.onMarket === false) return false;
+
+	const who = account.account?.pseudo ?? account.label ?? 'Compte';
+	const res = await sendNtfy({
+		...cfg,
+		title: MARKET_TITLES[type] ?? 'Kyara — marché',
+		message: `${who} · ${marketLine(type, item.data)}`,
+		priority: 3,
+		tags: MARKET_TAGS[type] ?? ['moneybag']
+	});
+	return res.ok;
+}
+
+/** Types pris en charge (exporté pour les tests). */
+export const MARKET_NOTIFICATION_TYPES = [...MARKET_TYPES];

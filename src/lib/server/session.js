@@ -63,7 +63,8 @@ export function publicUser(user) {
 			username: user.notify?.username ?? '',
 			passwordSet: Boolean(user.notify?.password),
 			onRare: user.notify?.onRare !== false,
-			onErrors: user.notify?.onErrors !== false
+			onErrors: user.notify?.onErrors !== false,
+			onMarket: user.notify?.onMarket !== false
 		}
 	};
 }

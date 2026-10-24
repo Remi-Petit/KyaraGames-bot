@@ -47,6 +47,8 @@ function defaultBot() {
 		missionsViewed: [],
 		/** persos déjà mis en vente par le bot, pour ne pas boucler dessus */
 		missionsListed: [],
+		/** horodatage de la dernière notification de marché déjà poussée */
+		notifSeenAt: null,
 		/** jour dont le pack quotidien a déjà été journalisé (évite une ligne par cycle) */
 		dailyLoggedDay: null
 	};
@@ -66,6 +68,10 @@ export function profileFromMe(me) {
 		chakra: me.chakra ?? 0,
 		freePacks: me.freePacks ?? 0,
 		freePacksMax: me.freePacksMax ?? 10,
+		/** boosters bonus (missions, événements) : ouverts avant le chakra */
+		bonusPacks: me.bonusPacks ?? 0,
+		/** boosters offerts, par type : { golden: 1, chest: 1, … } */
+		grants: me.grants && !Array.isArray(me.grants) ? me.grants : {},
 		nextFreeAt: me.nextFreeAt ?? null,
 		pity: me.pity ?? 0,
 		boostersOpened: me.boostersOpened ?? 0,
@@ -127,7 +133,9 @@ function normalizeNotify(raw) {
 		username: String(raw?.username ?? ''),
 		password: raw?.password ?? null,
 		onRare: raw?.onRare !== false,
-		onErrors: raw?.onErrors !== false
+		onErrors: raw?.onErrors !== false,
+		/** ventes, achats, offres d'échange, surenchères */
+		onMarket: raw?.onMarket !== false
 	};
 }
 

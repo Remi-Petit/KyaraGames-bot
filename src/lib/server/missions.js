@@ -112,15 +112,22 @@ async function viewFiches(client, acct, count, collection, period) {
 	return viewed;
 }
 
-/** `wishlist-3` : ajouter des persos à la wishlist (PUT = ajout). */
+/**
+ * `wishlist-3` : ajouter des persos à la wishlist (PUT = ajout).
+ *
+ * Le serveur refuse un perso déjà possédé (`409 wish_owned`) : on pioche donc
+ * dans les annonces du marché, jamais dans la collection.
+ */
 async function addWishes(client, acct, count, collection) {
 	const wish = await client.call('/me/wishlist').catch(() => []);
 	const have = new Set(
 		(Array.isArray(wish) ? wish : (wish?.wishlist ?? [])).map((w) => w?.characterId ?? w?.id ?? w)
 	);
-	const ids = [...new Set(collection.map((c) => c.characterId))].filter(
-		(id) => id != null && !have.has(id)
-	);
+	const owned = new Set(collection.map((c) => c.characterId));
+
+	const market = await client.call('/market/listings?sort=newest').catch(() => null);
+	const ids = [...new Set((market?.items ?? []).map((l) => l?.character?.id).filter((id) => id != null))]
+		.filter((id) => !owned.has(id) && !have.has(id));
 
 	let added = 0;
 	for (const id of ids.slice(0, count)) {
@@ -129,7 +136,7 @@ async function addWishes(client, acct, count, collection) {
 			added += 1;
 			await sleep(acct.settings.humanDelay === false ? 0 : rand(600, 1600));
 		} catch {
-			/* ignoré : on réessaiera au prochain passage */
+			/* refusé (déjà possédé ou déjà en wishlist) : on réessaiera */
 		}
 	}
 	return added;
@@ -228,6 +235,47 @@ async function claimTagEvent(client) {
 	return true;
 }
 
+/** Répercute la réponse d'un claim sur le compte (chakra, bonus, cadeaux). */
+function applyClaim(acct, res, result) {
+	result.chakra += Number(res?.gained?.chakra ?? 0);
+
+	const user = res?.user;
+	if (!user || !acct.account) return;
+	if (typeof user.chakra === 'number') acct.account.chakra = user.chakra;
+	if (typeof user.freePacks === 'number') acct.account.freePacks = user.freePacks;
+	if (typeof user.bonusPacks === 'number') acct.account.bonusPacks = user.bonusPacks;
+	if (user.grants && !Array.isArray(user.grants)) acct.account.grants = user.grants;
+}
+
+/**
+ * Filet de sécurité : si `kind: "all"` a laissé une famille de côté, on réclame
+ * chaque quête terminée une par une (le serveur répond `nothing_to_claim` sinon).
+ */
+async function claimLeftovers(client, acct, progress, result) {
+	const families = [
+		['welcome', progress?.welcome?.quests],
+		['daily', progress?.daily?.missions],
+		['weekly', progress?.weekly?.missions],
+		['achievement', progress?.achievements]
+	];
+
+	for (const [kind, list] of families) {
+		for (const quest of Array.isArray(list) ? list : []) {
+			if (!quest?.done || quest.claimed) continue;
+			try {
+				const res = await client.call('/me/progress/claim', {
+					method: 'POST',
+					body: { kind, id: quest.id }
+				});
+				result.claimed += 1;
+				applyClaim(acct, res, result);
+			} catch (e) {
+				result.warnings.push(`${kind}/${quest.id} · ${e?.code ?? e?.message ?? e}`);
+			}
+		}
+	}
+}
+
 /* ------------------------------------------------------------------ */
 /* Passage complet                                                     */
 /* ------------------------------------------------------------------ */
@@ -314,8 +362,12 @@ export async function runMissions(client, acct, { now = Date.now(), force = fals
 
 		if (progress?.streak && progress.streak.claimedToday === false) {
 			try {
-				await client.call('/me/progress/claim', { method: 'POST', body: { kind: 'streak' } });
+				const res = await client.call('/me/progress/claim', {
+					method: 'POST',
+					body: { kind: 'streak' }
+				});
 				result.actions.push('série réclamée');
+				applyClaim(acct, res, result);
 			} catch (e) {
 				result.warnings.push(`série · ${e?.message ?? e}`);
 			}
@@ -328,9 +380,12 @@ export async function runMissions(client, acct, { now = Date.now(), force = fals
 					method: 'POST',
 					body: { kind: 'all' }
 				});
-				result.claimed = pending;
-				result.chakra = Number(res?.gained?.chakra ?? 0);
-				if (res?.user?.chakra != null && acct.account) acct.account.chakra = res.user.chakra;
+				result.claimed += pending;
+				applyClaim(acct, res, result);
+
+				// `all` doit tout prendre : on vérifie qu'aucune famille n'est restée de côté.
+				const after = await client.call('/me/progress').catch(() => null);
+				if (after) await claimLeftovers(client, acct, after, result);
 			} catch (e) {
 				result.warnings.push(`récompenses · ${e?.message ?? e}`);
 			}
