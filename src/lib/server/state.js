@@ -17,7 +17,16 @@ function defaultSettings() {
 		/** null = tous les boosters gratuits */
 		types: null,
 		smart: true,
-		humanDelay: true
+		humanDelay: true,
+		/** missions quotidiennes hebdo, série de connexion et récompenses */
+		missions: true,
+		/** vendre / recycler un doublon (jamais au-dessus de sellMaxRarity) */
+		missionsMarket: true,
+		/** réclamer les récompenses d'événement */
+		missionsEvents: true,
+		sellMaxRarity: 'R',
+		/** prix de repli quand le marché ne donne ni vente ni médiane */
+		sellPrice: 1
 	};
 }
 
@@ -31,6 +40,13 @@ function defaultBot() {
 		lastError: null,
 		lastPackId: null,
 		lastOpenedAt: null,
+		/** dernier passage du moteur de missions (plancher de 15 min) */
+		lastMissionsAt: null,
+		/** période (jour Kyara) des fiches déjà consultées */
+		missionsPeriod: null,
+		missionsViewed: [],
+		/** persos déjà mis en vente par le bot, pour ne pas boucler dessus */
+		missionsListed: [],
 		/** jour dont le pack quotidien a déjà été journalisé (évite une ligne par cycle) */
 		dailyLoggedDay: null
 	};

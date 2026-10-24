@@ -1,6 +1,7 @@
 import { db, findAccount, save, log, pushOpen, profileFromMe } from './state.js';
 import { createClient, publicApi, KyaraError } from './kyara.js';
 import { unseal } from './crypto.js';
+import { runMissions } from './missions.js';
 import { notifyRare, notifyError } from './notify.js';
 
 const RARITY_ORDER = ['C', 'U', 'R', 'E', 'L', 'M'];
@@ -256,6 +257,7 @@ export class Runner {
 
 			await this.openAllFree(acct);
 			await this.openDaily(acct);
+			await this.runMissionsStep(acct);
 
 			const after = await this.client.me().catch(() => null);
 			if (after) applyMe(acct, after);
@@ -271,6 +273,27 @@ export class Runner {
 			save();
 			this.schedule();
 		}
+	}
+
+	/** Missions, série et récompenses — après les ouvertures, pour que `open-5` compte. */
+	async runMissionsStep(acct) {
+		let summary = null;
+		try {
+			summary = await runMissions(this.client, acct);
+		} catch (e) {
+			log(acct, 'warn', `Missions · ${e?.message ?? e}`);
+			return;
+		}
+		if (!summary) return;
+
+		const bits = [...summary.actions];
+		if (summary.claimed > 0) {
+			bits.push(`${summary.claimed} récompense(s)${summary.chakra > 0 ? ` +${summary.chakra} ◆` : ''}`);
+		}
+		if (bits.length) log(acct, 'info', `Missions · ${bits.join(' · ')}`);
+		if (summary.warnings.length) log(acct, 'warn', `Missions · ${summary.warnings.join(' · ')}`);
+		if (summary.error) log(acct, 'warn', `Missions · ${summary.error}`);
+		save();
 	}
 
 	async openAllFree(acct) {

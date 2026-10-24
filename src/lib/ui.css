@@ -341,7 +341,8 @@ footer {
 	letter-spacing: 0.08em;
 	color: var(--muted);
 }
-.fields input {
+.fields input,
+.fields select {
 	background: #0c0a12;
 	border: 1px solid var(--line);
 	border-radius: 9px;

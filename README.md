@@ -145,6 +145,38 @@ Pourquoi SSE plutôt qu'un WebSocket : le flux est unidirectionnel (serveur → 
 les actions restent en `POST` JSON, et adapter-node sert le flux sur le même port — pas de
 serveur custom ni de dépendance supplémentaire.
 
+## Missions et récompenses
+
+Le bot récupère aussi les missions **quotidiennes**, **hebdomadaires**, la **série de
+connexion** et les récompenses d'événement. La progression est calculée par le serveur
+Kyara : il faut reproduire l'action réelle, puis réclamer. Deux endpoints suffisent :
+
+```
+GET  /api/me/progress        → état des quêtes (daily, weekly, welcome, streak, achievements)
+POST /api/me/progress/claim  → { kind } ou { kind, id }
+```
+
+| Automatisme | Appel |
+|---|---|
+| Récompenses en attente | `POST /claim {kind:"all"}` |
+| Série de connexion | `POST /claim {kind:"streak"}` (booster doré au 7ᵉ jour) |
+| `details-3` — consulter 3 fiches | `GET /api/characters/:id/detail` ×3 |
+| `wishlist-3` | `PUT /api/me/wishlist/:id` ×3 |
+| `recycle-1` — recycler un doublon | `POST /api/me/collection/:id/recycle {qty:1}` |
+| `list-1` — mettre une carte en vente | `POST /api/market/listings {characterId, type:"fixed", price, durationHours}` |
+| Événement tag | `POST /api/me/tag-event/claim` (seulement si le serveur l'annonce) |
+
+Garde-fous :
+
+- **jamais** de vente ni de recyclage au-dessus de la rareté `sellMaxRarity` (*Rare* par
+  défaut) — Épique, Légendaire et Mythique sont intouchables ;
+- prix de l'annonce : le moins cher du marché (ventes immédiates) **− 1**, sinon la médiane
+  7 jours, sinon `sellPrice` (réglage, 1 ◆ par défaut) ;
+- un seul passage toutes les 15 minutes, et uniquement sur les quêtes non validées ;
+- `open-5` (« ouvrir 5 boosters ») est déjà couvert par les ouvertures normales.
+
+Trois interrupteurs dans les réglages : missions, ventes/recyclage, événements.
+
 ## Comportement
 
 - À chaque passage : `GET /api/me`, puis ouverture de **tous** les boosters disponibles

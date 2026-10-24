@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { findAccount, canAccess, db, save, snapshot, log } from '#lib/server/state.js';
 import { runnerFor } from '#lib/server/bot.js';
+import { SELLABLE_RARITIES } from '#lib/server/missions.js';
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, Math.round(n)));
 
@@ -38,6 +39,15 @@ export async function POST({ request, locals }) {
 		if (s.dailyPack !== undefined) account.settings.dailyPack = Boolean(s.dailyPack);
 		if (s.smart !== undefined) account.settings.smart = Boolean(s.smart);
 		if (s.humanDelay !== undefined) account.settings.humanDelay = Boolean(s.humanDelay);
+		if (s.missions !== undefined) account.settings.missions = Boolean(s.missions);
+		if (s.missionsMarket !== undefined) account.settings.missionsMarket = Boolean(s.missionsMarket);
+		if (s.missionsEvents !== undefined) account.settings.missionsEvents = Boolean(s.missionsEvents);
+		if (s.sellMaxRarity !== undefined) {
+			account.settings.sellMaxRarity = SELLABLE_RARITIES.includes(s.sellMaxRarity)
+				? s.sellMaxRarity
+				: 'R';
+		}
+		if (s.sellPrice !== undefined) account.settings.sellPrice = clamp(s.sellPrice, 1, 1_000_000);
 		if (s.types !== undefined) {
 			const known = new Set((db.meta.packs || []).filter((p) => p.free).map((p) => p.id));
 			const list = Array.isArray(s.types) ? s.types.filter((id) => known.has(id)) : [];

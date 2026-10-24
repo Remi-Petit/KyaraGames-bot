@@ -582,6 +582,23 @@
 							oninput={() => (dirty = true)}
 						/>
 					</label>
+					<label>
+						<span>Prix de repli (◆)</span>
+						<input
+							type="number"
+							min="1"
+							bind:value={settings.sellPrice}
+							oninput={() => (dirty = true)}
+						/>
+					</label>
+					<label>
+						<span>Rareté max. à vendre</span>
+						<select bind:value={settings.sellMaxRarity} onchange={() => (dirty = true)}>
+							<option value="C">Commune</option>
+							<option value="U">Peu commune</option>
+							<option value="R">Rare</option>
+						</select>
+					</label>
 				</div>
 
 				<div class="switches">
@@ -604,6 +621,30 @@
 							onchange={() => (dirty = true)}
 						/>
 						<span>Délai humain entre deux ouvertures</span>
+					</label>
+					<label class="switch">
+						<input
+							type="checkbox"
+							bind:checked={settings.missions}
+							onchange={() => (dirty = true)}
+						/>
+						<span>Missions, série de connexion et récompenses</span>
+					</label>
+					<label class="switch">
+						<input
+							type="checkbox"
+							bind:checked={settings.missionsMarket}
+							onchange={() => (dirty = true)}
+						/>
+						<span>Vendre / recycler un doublon (≤ {settings.sellMaxRarity})</span>
+					</label>
+					<label class="switch">
+						<input
+							type="checkbox"
+							bind:checked={settings.missionsEvents}
+							onchange={() => (dirty = true)}
+						/>
+						<span>Récompenses d’événement</span>
 					</label>
 				</div>
 
